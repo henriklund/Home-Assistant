@@ -1,0 +1,418 @@
+blueprint:
+  name: Person state
+  description: >
+    This is a blueprint for enhancing the state home/away of a person. personState
+    must allow for five states equivalent to Hjemme, Lige gået, Ude, Ude (længe), Lige ankommet
+    
+  domain: automation
+  input:
+    person:
+      name: Person
+      description: >
+        The person entity used to detect if person is home / aways
+      selector:
+        entity:
+          filter:
+            domain: person
+    personTimer:
+      name: Timer
+      description: >
+        (Optional)
+        Timer used to measure how long time a person has been away. If omitted, the
+        automation will rely on measuring for how long a given state has been
+        present. Due to how entity states are used as triggers in Home Assistant
+        (and the fact that redeployment / restart of HA means a loss of this state
+        knowledge), this will be lees reliable than using a timer. 
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: timer
+    personState:
+      name: State
+      description: >
+        An input_select entity containing the state of a person. The selectable states
+        must match one of the following five text fields
+      selector:
+        entity:
+          filter:
+            domain: input_select
+    homeState:
+      name: State when home
+      description: >
+        What state is expected when person is home?
+      default: Hjemme
+      selector:
+        text:
+    justLeftState:
+      name: State when just left
+      description: >
+        What state is expected when person has just left?
+      default: Lige gået
+      selector:
+        text:
+    awayState:
+      name: State when away
+      description: >
+        What state is expected when person is away?
+      default: Ude
+      selector:
+        text:
+    awayLongState:
+      name: State when away long
+      description: >
+        What state is expected when person is away long?
+      default: Ude (længe)
+      selector:
+        text:
+    justArrivedState:
+      name: State when just arrived
+      description: >
+        What state is expected when person has just arrived?
+      default: Lige ankommet
+      selector:
+        text:
+    hasLeft:
+      name: Change state to away after
+      description: >
+        When leaving home, after how many minutes should person be considered away?
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: "min."
+          mode: slider
+    hasArrived:
+      name: Change state to home after
+      description: >
+        When arriving at home, after how many minutes should person be considered home?
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: "min."
+          mode: slider
+    awayLong:
+      name: Change state to away long after
+      description: >
+        When away, After how many hours should person be considered away long?
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 72
+          step: 1
+          unit_of_measurement: "hrs."
+          mode: slider
+        
+mode: queued
+max: 10
+max_exceeded: silent
+trace:
+  stored_traces: 20
+
+trigger_variables: {}
+
+variables:
+  personTimer: !input personTimer
+  awayLong: !input awayLong
+
+trigger:
+  # Handle changes in state of the "person." entity
+  - trigger: state
+    entity_id:
+      - !input person
+    from: not_home
+    to: home
+    id: Person arriving home
+  - trigger: state
+    entity_id:
+      - !input person
+    from: home
+    to: not_home
+    id: Person leaving
+
+  # Handle changes in state of the extended person status (input_select) entity
+  - trigger: state
+    entity_id:
+      - !input personState
+    id: Person extended status
+
+  # Handle timer events (finished / paused) - both are considered thimer finished
+  - trigger: event
+    event_type: timer.paused
+    event_data:
+      entity_id: !input personTimer
+    id: Timer expired - person
+  - trigger: event
+    event_type: timer.finished
+    event_data:
+      entity_id: !input personTimer
+    id: Timer expired - person
+
+  # Important! If the entity is already in the state listed below, then the trigger will
+  # not "fire" when the listed duration has passed. The trigger can only "fire" when the
+  # automation observes a transitioning to the desired "to" state and state has been
+  # maintained for the requested duration.
+  # If an entity is already in the desired state and automation is redeployed, this
+  # "knowledge" of desired state is lost and automation will no longer wait. To avoid
+  # this caveat, use a timer instead.
+  - trigger: state
+    entity_id:
+      - !input personState
+    to: !input justArrivedState
+    for:
+      minutes: !input hasArrived
+    id: Timer expired - person
+  - trigger: state
+    entity_id:
+      - !input personState
+    to: !input justLeftState
+    for:
+      minutes: !input hasLeft
+    id: Timer expired - person
+  - trigger: state
+    entity_id:
+      - !input personState
+    to: !input awayState
+    for:
+      hours: !input awayLong
+    id: Timer expired - person
+
+action:
+  - variables: {}
+  
+  - choose:
+      # Handle the changes in a persons "person." entity state
+      - conditions:
+          - condition: trigger
+            id: Person arriving home
+        sequence:
+          - action: timer.cancel
+            target:
+              entity_id: !input personTimer
+          - if:
+              # Person state is "just left" or "just arrived home" and the "person."
+              # entity just changed state to home
+              - or:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justLeftState
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justArrivedState
+            # Set state to "home" otherwise set to "just arrived"
+            then:
+              - action: input_select.select_option
+                data:
+                  option: !input homeState
+                target:
+                  entity_id: !input personState
+            else:
+              - action: input_select.select_option
+                data:
+                  option: !input justArrivedState
+                target:
+                  entity_id: !input personState
+      - conditions:
+          - condition: trigger
+            id: Person leaving
+        sequence:
+          - action: timer.cancel
+            target:
+              entity_id: !input personTimer
+          - action: input_select.select_option
+            data:
+              option: !input justLeftState
+            target:
+              entity_id: !input personState
+      # Handle the changes in a persons extended status (input_select)
+      - conditions:
+          - condition: trigger
+            id: Person extended status
+        sequence:
+          - choose:
+              # Stop timer if person is home or away long
+              - conditions:
+                  - or:
+                      - condition: state
+                        entity_id: !input personState
+                        state: !input homeState
+                      - condition: state
+                        entity_id: !input personState
+                        state: !input awayLongState
+                sequence:
+                  - action: timer.cancel
+                    data: {}
+                    target:
+                      entity_id: !input personTimer
+              # Start timer when person just left
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justLeftState
+                sequence:
+                  - action: timer.start
+                    data:
+                      duration: 
+                        minutes: !input hasLeft
+                    target:
+                      entity_id: !input personTimer
+              # Start timer when person is away
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input awayState
+                sequence:
+                  - action: timer.start
+                    data:
+                      duration:
+                        hours: !input awayLong
+                    target:
+                      entity_id: !input personTimer
+              # Handle person just arrived
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justArrivedState
+                sequence:
+                  - if:
+                      # Timer is only active if state was person justArrivedState
+                      # If timer is not active or "person." entity is not_home
+                      # then the ELSE clause will take effect (and thus starting
+                      # the timer)
+                      - condition: state
+                        entity_id: !input personTimer
+                        state: active
+                      - condition: state
+                        entity_id: !input person
+                        state: home
+                    then:
+                      - action: timer.cancel
+                        target:
+                          entity_id: !input personTimer
+                      - action: input_select.select_option
+                        data:
+                          option: !input homeState
+                        target:
+                          entity_id: !input personState
+                    else:
+                      - action: timer.start
+                        data:
+                          duration: 
+                            minutes: !input hasArrived
+                        target:
+                          entity_id: !input personTimer
+      # Handle timer expired (just left -> away / away -> away (long))
+      - conditions:
+          - or:
+              - condition: trigger
+                id: Timer expired - person
+              - and:
+                  - '{{ trigger.id=="Timer expired - person" }}'
+                  - '{{ personTimer==[] }}'
+
+        sequence:
+          - choose:
+              # just arrived -> home
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justArrivedState
+                  - condition: state
+                    entity_id: !input person
+                    state: home
+                sequence:
+                  - action: input_select.select_option
+                    data:
+                      option: !input homeState
+                    target:
+                      entity_id: !input personState
+              # just arrived -> just left
+              # (eg. "person." entity does not show as at home)
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justArrivedState
+                  - condition: state
+                    entity_id: !input person
+                    state: not_home
+                sequence:
+                  - action: input_select.select_option
+                    data:
+                      option: !input justLeftState
+                    target:
+                      entity_id: !input personState
+              # just left -> away
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input justLeftState
+                sequence:
+                  - action: input_select.select_option
+                    data:
+                      option: !input awayState
+                    target:
+                      entity_id: !input personState
+              # away -> away (long)
+              - conditions:
+                  - condition: state
+                    entity_id: !input personState
+                    state: !input awayState
+                sequence:
+                  - action: input_select.select_option
+                    data:
+                      option: !input awayLongState
+                    target:
+                      entity_id: !input personState
+    default:
+      # If called for whatever reason not covered above (eg. called manually)
+      - if:
+          # Trust "person." entity state and match against one of just left /
+          # away / away long
+          # In this scenario, a person is considered just arrived
+          - condition: state
+            entity_id: !input person
+            state: home
+          - or:
+              - condition: state
+                entity_id: !input personState
+                state: !input justLeftState
+              - condition: state
+                entity_id: !input personState
+                state: !input awayState
+              - condition: state
+                entity_id: !input personState
+                state: !input awayLongState
+        then:
+          - action: input_select.select_option
+            data:
+              option: !input justArrivedState
+            target:
+              entity_id: !input personState
+      - if:
+          # Trust "person." entity state and match against one of just arrived /
+          # home
+          # In this scenario, a person is considered just left
+          - condition: state
+            entity_id: !input personState
+            state: not_home
+            #for:
+            #  minutes: !input justLeft
+          - or:
+              - condition: state
+                entity_id: !input personState
+                state: !input justArrivedState
+              - condition: state
+                entity_id: !input personState
+                state: !input homeState
+        then:
+          - action: input_select.select_option
+            data:
+              option: !input justLeftState
+            target:
+              entity_id: !input personState
