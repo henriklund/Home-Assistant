@@ -217,7 +217,7 @@
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
         {#-####################################################################-#}
-        {#- For duration < 60minutes, the previous block will already have served a suitable time window -#}
+        {#- For duration where (duration % 60) minutes == 0, the previous block will already have served a suitable time window -#}
         {%- if durationMinutes % 60 != 0 -%}
           {%- set pricing      = namespace(value=0) -%}
           {%- set timeResidual = durationMinutes -%}
