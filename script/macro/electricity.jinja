@@ -159,7 +159,7 @@
        Note: This will take the current hour into account thus providingg a calculation for now() + duration
              Subsequent hours are calculated from minute = 00 
     -#}
-    {%- for n in range(prices_len-(durationHours-1)+1) -%}
+    {%- for n in range(prices_len-durationHours+2) -%}
       {%- set priceStartTime     = prices[n][timeTagStr] -%}
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
