@@ -42,6 +42,7 @@
     mode                    full / 
                             cheapPrice / cheapStart / cheapStart / isCheapNow
                             expensivePrice / expensiveStart / expensiveStart / isExpensiveNow
+    hint                    String to be returned as part of the result. This could (e.g.) be the name of the integration providing data
 
     Macro returns a STRING(!) based on the MODE setting
     mode = full
@@ -57,6 +58,7 @@
         duration                   The duration of the time window looked for (in minutes)
         isCheapNow                 none if no cheap time period found, otherwise true / false dependent on whether right now is the cheapest period 
         isExpensiveNow             none if no expensive time period found, otherwise true / false dependent on whether right now is the most expensive period
+        hint                       none or string as provided when  macro was called 
         * = only included if a corresponding period was found
     mode = cheapPrice
       String value of price if 1 kW is used each hour during cheapest time. None if no period found
@@ -119,15 +121,15 @@
     {%- set mode = "full" -%}
   {% endif %}
 
-  {#-###################################-#}
-  {#- Retrieve energy prices
-     If, under 'strict' time adherence, where the provided latestDatetime is in the past, return a null price set -#}
+  {#- Blank out unwanted date sets. Order is today -> tomorrow -> forecast. If a set is blanked out, subsequent set(s) are also be blanked out -#}
   {%- if attr_today_arr=="" -%}
     {%- set attr_tomorrow_arr = "" -%}
   {%- endif -%}
   {%- if attr_tomorrow_arr=="" -%}
     {%- set attr_forecast_arr = "" -%}
   {%- endif -%}
+  {#- Retrieve energy prices
+      If, under 'strict' time adherence, where the provided latestDatetime is in the past, return a null price set -#}
   {%- set validTime = (timeAdherenceStr != "strict") or ( (timeAdherenceStr == "strict") and (latestDatetime >= now()) ) -%}
   {%- if mySensor_today is defined and mySensor_today != "" and validTime -%} 
     {%- set raw_today     = state_attr(mySensor_today, attr_today_arr) -%}
@@ -177,7 +179,7 @@
           {%- set pricing.value  = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
           {%- set timeResidual   = timeResidual - workMin -%}
           {%- set priceStartTime = earliestDatetime -%}
-  
+
           {%- for i in range(durationHours - 1) -%}
             {%- set workMin        = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
             {%- set pricing.value  = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
@@ -219,8 +221,8 @@
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
         {#-####################################################################-#}
-        {#- For duration < 60minutes, the previous block will already have served a suitable time window -#}
-        {%- if durationMinutes > 60 -%}
+        {#- For duration where (duration % 60) minutes == 0, the previous block will already have served a suitable time window -#}
+        {%- if durationMinutes % 60 != 0 -%}
           {%- set pricing      = namespace(value=0) -%}
           {%- set timeResidual = durationMinutes -%}
       
