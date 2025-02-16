@@ -1,26 +1,29 @@
-{%- macro PeriodPrice(mySensor,
+{%- macro PeriodPrice(mySensor_today,
                       earliestDatetime=null, latestDatetime=null,
                       durationTimedelta=timedelta(minutes=60),
                       returnFirstBool=true,
                       timeAdherenceStr="default",
                       attr_today_arr="raw_today",
                       attr_tomorrow_arr="raw_tomorrow",
+                      mySensor_tomorrow = mySensor_today,
                       attr_forecast_arr="forecast",
+                      mySensor_forecast = mySensor_today,
                       timeTagStr="hour",
                       priceTagStr="price",
                       defaultDurationMinNum=30,
                       defaultPeriodHrsNum=48,
-                      mode="full"
+                      mode="full",
+                      hint=""
                     ) -%}
 
   {#-####################################################################-#}
   {#-
-    Note that makro can be called adding just the mySensor parameter. Any paramater can be added in any order
+    Note that makro can be called adding just the mySensor_today parameter. Any paramater can be added in any order
     providing that it is written using the parameter name. When leaving out paramters, this is mandatory to ensure
     correct parsing. E.g. {{- PeriodPrice("sensor.edssensor", durationTimedelta=timedelta(minutes=90)) -}} 
 
     Required = *
-    * mySensor              (String) Name of the sensor (EDS or any similar type of sensor) that contains pricing data
+    * mySensor_today              (String) Name of the sensor (EDS or any similar type of sensor) that contains pricing data
     edsearliestDatetime     (DateTime) Exact date/time of start of window during which electricity will be used
     latestDatetime          (DateTime) Exact date/time of end of window during which electricity will be used
     durationTimedelta       (TimeDelta) Duration of electricity usage formatted as a TimeDelta
@@ -41,37 +44,40 @@
                             expensivePrice / expensiveStart / expensiveStart / isExpensiveNow
 
     Macro returns a STRING(!) based on the MODE setting
-      mode = full
-        String that must be converted using the from_json filter. The JSON can contain following:
-          * cheapPriceStartTime      Datetime string of when cheapest time starts
-          * cheapPriceEndTime        Datetime string of when cheapest time ends
-          cheapPrice                 Price if 1 kW is used each hour during cheapest time. None if no period found
-          * expensivePriceStartTime  Datetime string of when most expensive time starts
-          * expensivePriceEndTime    Datetime string of when most expensive time ends
-          expensivePrice             Price if 1 kW is used each hour during most expensive time. None if no period found
-          earliestDatetime           Datetime string of the earliest time used when looking for cheap / expensive
-          latestDatetime             Datetime string of the latest time used when looking for cheap / expensive
-          duration                   The duration of the time window looked for (in minutes)
-          isCheapNow                 none if no cheap time period found, otherwise true / false dependent on whether right now is the cheapest period 
-          isExpensiveNow             none if no expensive time period found, otherwise true / false dependent on whether right now is the most expensive period
-          * = only included if a corresponding period was found
-      mode = cheapPrice
-        String value of price if 1 kW is used each hour during cheapest time. None if no period found
-      mode = cheapStart
-        Datetime string of when cheapest time starts
-      mode = cheapEnd
-        Datetime string of when cheapest time ends
-      mode = expensivePrice
-        String value of price if 1 kW is used each hour during most expensive time. None if no period found
-      mode = expensiveStart
-        Datetime string of when most expensive time starts
-      mode = expensiveEnd
-        Datetime string of when most expensive time ends
+    mode = full
+      String that must be converted using the from_json filter. The JSON can contain following:
+        * cheapPriceStartTime      Datetime string of when cheapest time starts
+        * cheapPriceEndTime        Datetime string of when cheapest time ends
+        cheapPrice                 Price if 1 kW is used each hour during cheapest time. None if no period found
+        * expensivePriceStartTime  Datetime string of when most expensive time starts
+        * expensivePriceEndTime    Datetime string of when most expensive time ends
+        expensivePrice             Price if 1 kW is used each hour during most expensive time. None if no period found
+        earliestDatetime           Datetime string of the earliest time used when looking for cheap / expensive
+        latestDatetime             Datetime string of the latest time used when looking for cheap / expensive
+        duration                   The duration of the time window looked for (in minutes)
+        isCheapNow                 none if no cheap time period found, otherwise true / false dependent on whether right now is the cheapest period 
+        isExpensiveNow             none if no expensive time period found, otherwise true / false dependent on whether right now is the most expensive period
+        * = only included if a corresponding period was found
+    mode = cheapPrice
+      String value of price if 1 kW is used each hour during cheapest time. None if no period found
+    mode = cheapStart
+      Datetime string of when cheapest time starts
+    mode = cheapEnd
+      Datetime string of when cheapest time ends
+    mode = expensivePrice
+      String value of price if 1 kW is used each hour during most expensive time. None if no period found
+    mode = expensiveStart
+      Datetime string of when most expensive time starts
+    mode = expensiveEnd
+      Datetime string of when most expensive time ends
   -#}
 
   {#-####################################################################-#}
   {#- Prepare input parameters -#}
-  {%- set timeAdherenceStr       = "default" if timeAdherenceStr | lower not in ("default", "strict", "forced") else timeAdherenceStr -%}
+  {%- set timeAdherenceStr       = timeAdherenceStr | lower %}
+  {%- if timeAdherenceStr not in ("default", "strict", "forced") %}
+      {% set timeAdherenceStr = "default" %}
+  {% endif %}
   {%- set nowTime                = now() if timeAdherenceStr not in ("strict", "forced") else earliestDatetime -%}
  
   {#-###################################-#}
@@ -103,30 +109,42 @@
   {%- set durationDiff           = durationMinutes - (latestDatetime - earliestDatetime).total_seconds() // 60 -%}
   {%- set durationDiff           = 0 if durationDiff < 0 else durationDiff -%}
   {%- set latestDatetime         = latestDatetime + timedelta(minutes=0 if durationDiff <= 0 else durationDiff) -%}
-  {%- set latestDatetimeComp     = (latestDatetime - timedelta(hours=durationHours + (1 if durationMinutesResidual > 0 else 0))) -%}
-  {%- set mode                   = "full" if mode not in (
-                                                          "full",
-                                                          "cheapPrice", "cheapStart", "cheapStart", "isCheapNow", 
-                                                          "expensivePrice", "expensiveStart", "expensiveStart", "isExpensiveNow"
-                                                        )
-                                  else mode
-  -%}
+  {#%- set latestDatetimeComp     = (latestDatetime - timedelta(hours=durationHours + (1 if durationMinutesResidual > 0 else 0))) -%#}
+  {%- set mode                   = mode | lower -%}
+  {%- if mode not in (
+                        "full",
+                        "cheapPrice", "cheapStart", "cheapStart", "isCheapNow", 
+                        "expensivePrice", "expensiveStart", "expensiveStart", "isExpensiveNow"
+                      ) -%}
+    {%- set mode = "full" -%}
+  {% endif %}
 
   {#-###################################-#}
   {#- Retrieve energy prices
      If, under 'strict' time adherence, where the provided latestDatetime is in the past, return a null price set -#}
+  {%- if attr_today_arr=="" -%}
+    {%- set attr_tomorrow_arr = "" -%}
+  {%- endif -%}
+  {%- if attr_tomorrow_arr=="" -%}
+    {%- set attr_forecast_arr = "" -%}
+  {%- endif -%}
   {%- set validTime = (timeAdherenceStr != "strict") or ( (timeAdherenceStr == "strict") and (latestDatetime >= now()) ) -%}
-  {%- if mySensor is defined and mySensor != "" and validTime -%} 
-    {%- set energyPrice   = mySensor -%}
-    {%- set raw_today     = state_attr(energyPrice, attr_today_arr) -%}
-    {%- set raw_tomorrow  = state_attr(energyPrice, attr_tomorrow_arr) -%}
-    {%- set forecast      = state_attr(energyPrice, attr_forecast_arr) -%}
+  {%- if mySensor_today is defined and mySensor_today != "" and validTime -%} 
+    {%- set raw_today     = state_attr(mySensor_today, attr_today_arr) -%}
+    {%- set raw_tomorrow  = state_attr(mySensor_tomorrow, attr_tomorrow_arr) -%}
+    {%- set forecast      = state_attr(mySensor_forecast, attr_forecast_arr) -%}
     {%- set prices        = (raw_today if raw_today else []) + (raw_tomorrow if raw_tomorrow else []) + (forecast if forecast else []) -%}
     {%- set prices_len    = (prices | length) - durationHours | int -%}
   {%- else -%}
     {%- set prices_len    = 0 -%}
   {%- endif -%}
 
+  {#- Do not allow latestDatetime to be after last price available makes no sense -#}
+  {%- set tmp = prices[prices_len][timeTagStr] + timedelta(minutes=60*durationHours) -%}
+  {%- if latestDatetime > tmp -%}
+    {%- set latestDatetime = tmp -%}
+  {%- endif -%}
+  
   {#-####################################################################-#}
   {#- Set result name spaces -#}
   {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None) -%}
@@ -134,14 +152,14 @@
 
   {#-####################################################################-#}
   {#- Only run if we have price data -#}
-  {%- if prices_len > 0 -%}
+  {%- if prices_len > 0 and timeTagStr in prices[0] -%}
     {#-####################################################################-#}
     {#-
        Calculate cheapest period for the current hour and all consecutive hours
        Note: This will take the current hour into account thus providingg a calculation for now() + duration
              Subsequent hours are calculated from minute = 00 
     -#}
-    {%- for n in range(prices_len) -%}
+    {%- for n in range(prices_len-(durationHours-1)+1) -%}
       {%- set priceStartTime     = prices[n][timeTagStr] -%}
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
@@ -158,7 +176,6 @@
           {%- set pricing.value  = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
           {%- set timeResidual   = timeResidual - workMin -%}
           {%- set priceStartTime = earliestDatetime -%}
-  
           {%- for i in range(durationHours) -%}
             {%- set workMin        = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
             {%- set pricing.value  = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
@@ -186,7 +203,7 @@
         {%- endif -%}
       {%- endif -%}
     {%- endfor -%}
-  
+
     {#-####################################################################-#}
     {#- 
        Calculate cheapest period assuming that we start (duration % 60) minutes before the hour, This allows use of the very end
@@ -195,13 +212,13 @@
        b) Start at (hour - duration % 60) gives a total prices of (1:30) 35 and (2:30) 50 
        (b) 01:30 is thus the cheapest alternative and should be chosen   
     -#}  
-    {%- for n in range(prices_len) -%}
+    {%- for n in range(prices_len+(durationHours-1)) -%}
       {%- set priceStartTime     = prices[n][timeTagStr] + timedelta(minutes = 60 - durationMinutesResidual) -%}
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
         {#-####################################################################-#}
         {#- For duration < 60minutes, the previous block will already have served a suitable time window -#}
-        {%- if durationMinutes > 60 -%}
+        {%- if durationMinutes % 60 != 0 -%}
           {%- set pricing      = namespace(value=0) -%}
           {%- set timeResidual = durationMinutes -%}
       
@@ -211,7 +228,7 @@
           
           {%- set priceStartTime = priceStartTime - timedelta(minutes=0 if durationDiff<=0 else 60-durationDiff) -%}
           {%- if (priceStartTime>=earliestDatetime) and (priceStartTime + timedelta(minutes=durationMinutes)<=latestDatetime) -%}
-            {%- for i in range(durationHours) -%}
+            {%- for i in range(durationHours-1) -%}
               {%- set workMin       = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
               {%- set pricing.value = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
             {%- endfor -%}
@@ -235,8 +252,9 @@
   {#- Output result as a string formatted as JSON - this can then be parsed by whatever called the macro -#}
   {%- set FinalCheapDict     = dict(cheapPrice=none)      if resultCheap.pricing     == 9999 or resultCheap.priceStartTime    ==None else dict(cheapPriceStartTime    =resultCheap.priceStartTime    |string, cheapPrice    =resultCheap.pricing    |round(4)) -%}
   {%- set FinalExpensiveDict = dict(expensivePrice=none) if resultExpensive.pricing == 9999 or resultExpensive.priceStartTime==None else dict(expensivePriceStartTime=resultExpensive.priceStartTime|string, expensivePrice=resultExpensive.pricing|round(4)) -%}
+  {%- set HintDict = dict() if hint == "" else dict(hint = hint) -%}
   {%- set result = dict(
-          FinalCheapDict | items | list + FinalExpensiveDict | items | list, 
+          FinalCheapDict | items | list + FinalExpensiveDict | items | list + HintDict | items | list, 
           earliestDatetime= earliestDatetime|string, 
           latestDatetime  = latestDatetime|string, 
           duration        = durationMinutes|round(0),
