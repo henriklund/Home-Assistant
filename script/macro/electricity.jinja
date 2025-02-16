@@ -134,13 +134,14 @@
     {%- set raw_tomorrow  = state_attr(mySensor_tomorrow, attr_tomorrow_arr) -%}
     {%- set forecast      = state_attr(mySensor_forecast, attr_forecast_arr) -%}
     {%- set prices        = (raw_today if raw_today else []) + (raw_tomorrow if raw_tomorrow else []) + (forecast if forecast else []) -%}
-    {%- set prices_len    = (prices | length) - durationHours | int -%}
+    {%- set arrSize       = prices | length -%}
+    {%- set prices_len    = arrSize - durationHours | int + 1 -%}
   {%- else -%}
     {%- set prices_len    = 0 -%}
   {%- endif -%}
 
   {#- Do not allow latestDatetime to be after last price available makes no sense -#}
-  {%- set tmp = prices[prices_len][timeTagStr] + timedelta(minutes=60*durationHours) -%}
+  {%- set tmp = prices[arrSize-1][timeTagStr] + timedelta(minutes=60) -%}
   {%- if latestDatetime > tmp -%}
     {%- set latestDatetime = tmp -%}
   {%- endif -%}
@@ -159,7 +160,7 @@
        Note: This will take the current hour into account thus providingg a calculation for now() + duration
              Subsequent hours are calculated from minute = 00 
     -#}
-    {%- for n in range(prices_len-durationHours+2) -%}
+    {%- for n in range(prices_len) -%}
       {%- set priceStartTime     = prices[n][timeTagStr] -%}
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
@@ -176,7 +177,8 @@
           {%- set pricing.value  = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
           {%- set timeResidual   = timeResidual - workMin -%}
           {%- set priceStartTime = earliestDatetime -%}
-          {%- for i in range(durationHours) -%}
+  
+          {%- for i in range(durationHours - 1) -%}
             {%- set workMin        = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
             {%- set pricing.value  = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
           {%- endfor -%}
@@ -212,13 +214,13 @@
        b) Start at (hour - duration % 60) gives a total prices of (1:30) 35 and (2:30) 50 
        (b) 01:30 is thus the cheapest alternative and should be chosen   
     -#}  
-    {%- for n in range(prices_len+(durationHours-1)) -%}
+    {%- for n in range(prices_len) -%}
       {%- set priceStartTime     = prices[n][timeTagStr] + timedelta(minutes = 60 - durationMinutesResidual) -%}
 
       {%- if earliestDatetimeComp <= priceStartTime -%}
         {#-####################################################################-#}
-        {#- For duration where (duration % 60) minutes == 0, the previous block will already have served a suitable time window -#}
-        {%- if durationMinutes % 60 != 0 -%}
+        {#- For duration < 60minutes, the previous block will already have served a suitable time window -#}
+        {%- if durationMinutes > 60 -%}
           {%- set pricing      = namespace(value=0) -%}
           {%- set timeResidual = durationMinutes -%}
       
