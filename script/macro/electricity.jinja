@@ -86,8 +86,8 @@
   {#- Validate and set earliestDatetime -#}
   {%- set earliestDatetime       = nowTime if earliestDatetime is not defined or earliestDatetime is not datetime or (earliestDatetime < nowTime) else earliestDatetime -%}
   {#- Strip microseconds from time -#}
-  {%- set earliestDatetime       = earliestDatetime - timedelta(microseconds=earliestDatetime.microsecond) -%}
-  {%- set earliestDatetimeMinute  = earliestDatetime.minute -%}
+  {%- set earliestDatetime       = earliestDatetime - timedelta(microseconds=earliestDatetime.microsecond, seconds=earliestDatetime.second) -%}
+  {%- set earliestDatetimeMinute = earliestDatetime.minute -%}
   {%- set earliestDatetimeComp   = earliestDatetime - timedelta(minutes=earliestDatetime.minute, seconds=earliestDatetime.second) -%}
   {#- Validate and set durationTimedelta -#}
   {%- set minDuration            = defaultDurationMinNum if defaultDuration is number else 30 -%}
@@ -141,13 +141,7 @@
   {%- else -%}
     {%- set prices_len    = 0 -%}
   {%- endif -%}
-
-  {#- Do not allow latestDatetime to be after last price available makes no sense -#}
-  {%- set tmp = prices[arrSize-1][timeTagStr] + timedelta(minutes=60) -%}
-  {%- if latestDatetime > tmp -%}
-    {%- set latestDatetime = tmp -%}
-  {%- endif -%}
-  
+ 
   {#-####################################################################-#}
   {#- Set result name spaces -#}
   {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None) -%}
@@ -156,99 +150,65 @@
   {#-####################################################################-#}
   {#- Only run if we have price data -#}
   {%- if prices_len > 0 and timeTagStr in prices[0] -%}
+    {#- Do not allow latestDatetime to be after last price available makes no sense -#}
+    {%- set tmp = prices[arrSize-1][timeTagStr] + timedelta(minutes=60) -%}
+    {%- if latestDatetime > tmp -%}
+      {%- set latestDatetime = tmp -%}
+    {%- endif -%}
+    
     {#-####################################################################-#}
     {#-
        Calculate cheapest period for the current hour and all consecutive hours
-       Note: This will take the current hour into account thus providingg a calculation for now() + duration
-             Subsequent hours are calculated from minute = 00 
+       Note: This will take the current hour into account thus providingg a calculation for now() + duration,
+             as well at calculation placed at the end of a hour
     -#}
+    {# Loop all timeslot where a pricing exists #}
     {%- for n in range(prices_len) -%}
-      {%- set priceStartTime     = prices[n][timeTagStr] -%}
-
-      {%- if earliestDatetimeComp <= priceStartTime -%}
-        
-        {#-####################################################################-#}
-        {#- Only do the calculation for price data that falls within the relevant timespan -#}
-        {%- set pricing      = namespace(value=0) -%}
-        {%- set timeResidual = durationMinutes -%}
-
-        {%- if earliestDatetimeComp == priceStartTime -%}
-          {#-####################################################################-#}
-          {#- Are we working with the first hour or a part hereof? -#}
-          {%- set workMin        = (60 - earliestDatetimeMinute) if durationMinutes>=(60 - earliestDatetimeMinute) else durationMinutes -%}
-          {%- set pricing.value  = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
-          {%- set timeResidual   = timeResidual - workMin -%}
-          {%- set priceStartTime = earliestDatetime -%}
-
-          {%- for i in range(durationHours - 1) -%}
-            {%- set workMin        = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
-            {%- set pricing.value  = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
-          {%- endfor -%}
-        {%- else -%}
-          {#-####################################################################-#}
-          {#- ...otherwise work with subsequent hours and residual time -#}
-          {%- for i in range(durationHours) -%}
-            {%- set workMin        = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
-            {%- set pricing.value  = pricing.value + prices[n+i][priceTagStr] * (workMin / 60) -%}
-            {%- set timeResidual   = timeResidual - workMin -%}
-          {%- endfor -%}
-        {%- endif -%}
-  
-        {#-####################################################################-#}
-        {%- if (priceStartTime>=earliestDatetime) and (priceStartTime + timedelta(minutes=durationMinutes)<=latestDatetime) -%}
-          {%- if (pricing.value<resultCheap.pricing or (not returnFirstBool and pricing.value<=resultCheap.pricing)) -%}
-            {%- set resultCheap.pricing        = pricing.value -%}
-            {%- set resultCheap.priceStartTime = priceStartTime -%}          
-          {%- endif -%}
-          {%- if (pricing.value>resultExpensive.pricing or (not returnFirstBool and pricing.value>=resultExpensive.pricing)) -%}
-            {%- set resultExpensive.pricing        = pricing.value -%}
-            {%- set resultExpensive.priceStartTime = priceStartTime -%}
-          {%- endif -%}
-        {%- endif -%}
+      {# Calculat pricing on the hour, at the current minute number as well as at the end of an hour #}
+      {%- set loopSet = [0,earliestDatetimeMinute] -%}
+      {%- if durationMinutesResidual != 0 -%}
+        {%- set loopSet = loopSet + [60 - durationMinutesResidual] -%}
       {%- endif -%}
-    {%- endfor -%}
-
-    {#-####################################################################-#}
-    {#- 
-       Calculate cheapest period assuming that we start (duration % 60) minutes before the hour, This allows use of the very end
-       of the whole price window as well. E.g. duration is 90 mins and three hours with a price of (1:00) 30, (2:00) 20 and (3:00) 40:
-       a) Start on the hour gives a total prices of (1:00) 40 and (2:00) 40
-       b) Start at (hour - duration % 60) gives a total prices of (1:30) 35 and (2:30) 50 
-       (b) 01:30 is thus the cheapest alternative and should be chosen   
-    -#}  
-    {%- for n in range(prices_len) -%}
-      {%- set priceStartTime     = prices[n][timeTagStr] + timedelta(minutes = 60 - durationMinutesResidual) -%}
-
-      {%- if earliestDatetimeComp <= priceStartTime -%}
-        {#-####################################################################-#}
-        {#- For duration where (duration % 60) minutes == 0, the previous block will already have served a suitable time window -#}
-        {%- if durationMinutes % 60 != 0 -%}
-          {%- set pricing      = namespace(value=0) -%}
-          {%- set timeResidual = durationMinutes -%}
-      
-          {%- set workMin        = durationMinutesResidual -%}
-          {%- set pricing.value  = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
-          {%- set timeResidual   = timeResidual - workMin -%}
-          
+      {# Iterate through the possible minute sets #}      
+      {%- for v in range(loopSet | length) -%}
+        {%- set priceStartTime     = prices[n][timeTagStr] + timedelta(minutes=loopSet[v]) -%}
+        {%- if earliestDatetimeComp <= priceStartTime -%}
+          {#-####################################################################-#}
+          {#- Only do the calculation for price data that falls within the relevant timespan -#}
+          {%- set pricing       = namespace(value=0) -%}
+          {%- set timeResidual  = durationMinutes -%}
+          {%- set workMin       = 60 - loopSet[v] -%}
+          {%- set workMin       = workMin if durationMinutes > workMin else durationMinutes -%}
+          {%- set pricing.value = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
+          {%- set timeResidual  = timeResidual - workMin -%}
+		  
           {%- set priceStartTime = priceStartTime - timedelta(minutes=0 if durationDiff<=0 else 60-durationDiff) -%}
           {%- if (priceStartTime>=earliestDatetime) and (priceStartTime + timedelta(minutes=durationMinutes)<=latestDatetime) -%}
-            {%- for i in range(durationHours-1) -%}
-              {%- set workMin       = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
-              {%- set pricing.value = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
+            {%- for i in range(durationHours) -%}
+              {%- if n+i+1<arrSize -%}
+                {%- set workMin       = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
+                {%- set pricing.value = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
+              {%- endif -%}
             {%- endfor -%}
 
             {#-####################################################################-#}
-            {%- if (pricing.value<resultCheap.pricing or (not returnFirstBool and pricing.value<=resultCheap.pricing)) -%}
+            {%- if (pricing.value<resultCheap.pricing or
+                   (returnFirstBool and pricing.value<=resultCheap.pricing and priceStartTime<resultCheap.priceStartTime) or
+                   (not returnFirstBool and pricing.value<=resultCheap.pricing and priceStartTime>resultCheap.priceStartTime)
+                   ) -%}
               {%- set resultCheap.pricing        = pricing.value -%}
               {%- set resultCheap.priceStartTime = priceStartTime -%}
             {%- endif -%}
-            {%- if (priceStartTime>=earliestDatetime) and (priceStartTime + timedelta(minutes=durationMinutes)<=latestDatetime) and (pricing.value>resultExpensive.pricing or (not returnFirstBool and pricing.value>=resultExpensive.pricing)) -%}
+            {%- if (pricing.value>resultExpensive.pricing or
+                   (returnFirstBool and pricing.value>=resultExpensive.pricing and priceStartTime<resultExpensive.priceStartTime) or
+                   (not returnFirstBool and pricing.value>=resultExpensive.pricing and priceStartTime>resultExpensive.priceStartTime)
+                   ) -%}
               {%- set resultExpensive.pricing        = pricing.value -%}
               {%- set resultExpensive.priceStartTime = priceStartTime -%}
             {%- endif -%}
           {%- endif -%}
         {%- endif -%}
-      {%- endif -%}
+      {%- endfor -%}
     {%- endfor -%}
   {%- endif -%}
 
