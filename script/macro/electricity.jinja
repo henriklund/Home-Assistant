@@ -85,7 +85,7 @@
   {#-###################################-#}
   {#- Validate and set earliestDatetime -#}
   {%- set earliestDatetime       = nowTime if earliestDatetime is not defined or earliestDatetime is not datetime or (earliestDatetime < nowTime) else earliestDatetime -%}
-  {#- Strip microseconds from time -#}
+  {#- Strip microseconds and seconds from time -#}
   {%- set earliestDatetime       = earliestDatetime - timedelta(microseconds=earliestDatetime.microsecond, seconds=earliestDatetime.second) -%}
   {%- set earliestDatetimeMinute = earliestDatetime.minute -%}
   {%- set earliestDatetimeComp   = earliestDatetime - timedelta(minutes=earliestDatetime.minute, seconds=earliestDatetime.second) -%}
