@@ -12,7 +12,7 @@
                       priceTagStr="price",
                       defaultDurationMinNum=30,
                       defaultPeriodHrsNum=48,
-                      mode="full",
+                      mode="default",
                       hint=""
                     ) -%}
 
@@ -114,11 +114,11 @@
   {#%- set latestDatetimeComp     = (latestDatetime - timedelta(hours=durationHours + (1 if durationMinutesResidual > 0 else 0))) -%#}
   {%- set mode                   = mode | lower -%}
   {%- if mode not in (
-                        "full",
+                        "default", "detail",
                         "cheapPrice", "cheapStart", "cheapStart", "isCheapNow", 
                         "expensivePrice", "expensiveStart", "expensiveStart", "isExpensiveNow"
                       ) -%}
-    {%- set mode = "full" -%}
+    {%- set mode = "default" -%}
   {% endif %}
 
   {#- Blank out unwanted date sets. Order is today -> tomorrow -> forecast. If a set is blanked out, subsequent set(s) are also be blanked out -#}
@@ -144,8 +144,8 @@
  
   {#-####################################################################-#}
   {#- Set result name spaces -#}
-  {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None) -%}
-  {%- set resultExpensive = namespace(pricing=0,    priceStartTime=None) -%}
+  {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None, window=[]) -%}
+  {%- set resultExpensive = namespace(pricing=0,    priceStartTime=None, window=[]) -%}
 
   {#-####################################################################-#}
   {#- Only run if we have price data -#}
@@ -176,10 +176,13 @@
           {#-####################################################################-#}
           {#- Only do the calculation for price data that falls within the relevant timespan -#}
           {%- set pricing       = namespace(value=0) -%}
+          {%- set timeSet       = namespace(dict=[]) -%}
+          
           {%- set timeResidual  = durationMinutes -%}
           {%- set workMin       = 60 - loopSet[v] -%}
           {%- set workMin       = workMin if durationMinutes > workMin else durationMinutes -%}
           {%- set pricing.value = pricing.value + prices[n][priceTagStr] * (workMin / 60) -%}
+          {%- set timeSet.dict  = timeSet.dict +[dict(start=prices[n][timeTagStr] | string, price=prices[n][priceTagStr], factor=(workMin / 60) | round(4))] -%}
           {%- set timeResidual  = timeResidual - workMin -%}
 		  
           {%- set priceStartTime = priceStartTime - timedelta(minutes=0 if durationDiff<=0 else 60-durationDiff) -%}
@@ -188,6 +191,7 @@
               {%- if n+i+1<arrSize -%}
                 {%- set workMin       = 60 if (timeResidual - i * 60) > 60 else (timeResidual  - i * 60) if (timeResidual  - i * 60)>0 else 0 -%}
                 {%- set pricing.value = pricing.value + prices[n+i+1][priceTagStr] * (workMin / 60) -%}
+                {%- set timeSet.dict  = timeSet.dict + ( [] if workMin==0 else [dict(start=prices[n+i+1][timeTagStr] | string, price=prices[n+i+1][priceTagStr], factor=(workMin/60) | round(4))] ) -%}
               {%- endif -%}
             {%- endfor -%}
 
@@ -198,6 +202,7 @@
                    ) -%}
               {%- set resultCheap.pricing        = pricing.value -%}
               {%- set resultCheap.priceStartTime = priceStartTime -%}
+              {%- set resultCheap.window = timeSet.dict -%}
             {%- endif -%}
             {%- if (pricing.value>resultExpensive.pricing or
                    (returnFirstBool and pricing.value>=resultExpensive.pricing and priceStartTime<resultExpensive.priceStartTime) or
@@ -205,6 +210,7 @@
                    ) -%}
               {%- set resultExpensive.pricing        = pricing.value -%}
               {%- set resultExpensive.priceStartTime = priceStartTime -%}
+              {%- set resultExpensive.window = timeSet.dict -%}
             {%- endif -%}
           {%- endif -%}
         {%- endif -%}
@@ -216,16 +222,22 @@
   {#- Output result as a string formatted as JSON - this can then be parsed by whatever called the macro -#}
   {%- set FinalCheapDict     = dict(cheapPrice=none)      if resultCheap.pricing     == 9999 or resultCheap.priceStartTime    ==None else dict(cheapPriceStartTime    =resultCheap.priceStartTime    |string, cheapPrice    =resultCheap.pricing    |round(4)) -%}
   {%- set FinalExpensiveDict = dict(expensivePrice=none) if resultExpensive.pricing == 9999 or resultExpensive.priceStartTime==None else dict(expensivePriceStartTime=resultExpensive.priceStartTime|string, expensivePrice=resultExpensive.pricing|round(4)) -%}
-  {%- set HintDict = dict() if hint == "" else dict(hint = hint) -%}
   {%- set result = dict(
-          FinalCheapDict | items | list + FinalExpensiveDict | items | list + HintDict | items | list, 
           earliestDatetime= earliestDatetime|string, 
           latestDatetime  = latestDatetime|string, 
           duration        = durationMinutes|round(0),
           isCheapNow      = none if FinalCheapDict.cheapPrice        ==none else now() | as_timestamp | timestamp_custom('%Y-%m-%d %H:%M') == FinalCheapDict.cheapPriceStartTime         | as_timestamp | timestamp_custom('%Y-%m-%d %H:%M'),
           isExpensiveNow  = none if FinalExpensiveDict.expensivePrice==none else now() | as_timestamp | timestamp_custom('%Y-%m-%d %H:%M') == FinalExpensiveDict.expensivePriceStartTime | as_timestamp | timestamp_custom('%Y-%m-%d %H:%M'),
-          mode=mode
+          mode=mode,
+          **(dict() if hint == "" else dict(hint = hint))
         ) -%}
+  {%- set result = result if mode != "detail" else dict(cheapWindow=resultCheap.window, expensiveWindow=resultExpensive.window, **result) -%}
+  {%- set result = dict(
+          FinalCheapDict | items | list +
+          FinalExpensiveDict | items | list,
+          **result)
+  -%}  
+
   {%- if mode == "cheapPrice" -%}
     {{- result.cheapPrice -}}
   {%- elif mode == "cheapStart" -%}
