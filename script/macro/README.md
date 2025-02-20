@@ -51,8 +51,8 @@ When mode is default or details, the returned value (passed throught the from_js
 | isCheapNow                 | none if no cheap time period found, otherwise true / false dependent on whether right now is the cheapest period |
 | isExpensiveNow             | none if no expensive time period found, otherwise true / false dependent on whether right now is the most expensive period |
 | mode                       | Name of the mode used |
-| cheapWindow                | Explaination for calculation to reach cheapest price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the part of the corresponding slice|
-| expensiveWindow            | Explaination for calculation to reach most expensive price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the part of the corresponding slice|
+| cheapWindow                | Explaination for calculation to reach cheapest price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
+| expensiveWindow            | Explaination for calculation to reach most expensive price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
 | status                     | Result of the operation. If not 'ok', then this is an warning / error |
 | hint                       | none or string as provided when  macro was called |
 </br>
