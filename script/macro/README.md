@@ -21,6 +21,8 @@ Required = *
 | attr_today_arr         |(String) Name of attribute for today data - organized in pairs of time + price|
 | attr_tomorrow_arr      |(String) Name of attribute for tomoows data (if any) - organized in pairs of time + price|
 | attr_forecast_arr      |(String) Name of attribute for forecast data after tomorrow (if any) - organized in pairs of time + price|
+| mySensor_tomorrow      |(String) Name of the sensor that contains pricing data for tomorrow. Default to mySensor_today|
+| mySensor_forecast      |(String) Name of the sensor that contains pricing data for forecast. Default to mySensor_today|
 | timeTagStr             |(String) Name attribute (in the pair) containng the time|
 | priceTagStr            |(String) Name attribute (in the pair) containng the price|
 | defaultDurationMinNum  |(Number) Default minimum duration of any period|
@@ -68,6 +70,37 @@ For any other mode, the returned value will be a string with the following conte
 |expensiveStart | Datetime string of when most expensive time starts |
 |expensiveEnd   | Datetime string of when most expensive time ends |
 
+## Advanced use
+### Multiple sensors
+The macro has the ability to get day-ahead pricing for today / tomorrow from two sensors. I.e. sensor1 can provide todays pricing, and sensor2 can provide tomorrows; e.g. this could be the case when using [Strømligning](https://github.com/MTrab/stromligning). If forecast data is available (e.g. you have a sensor that pulls data from [Carnots API](https://www.carnot.dk/), then this data can also be used. However, there are some requirements that must be met:
+- Data obtained from these (up to) three sensors may not overlap
+- The prices are valid for the same duration (e.g. hour)
+- The name (entity_id) of the sensor must be listed in mySensor_today / mySensor_tomorrow / mySensor_forecast. Note:
+  - if mySensor_forecast is set to empty, forecast data is ignored
+  - if mySensor_tomorrow is set to empty, both data for tomorrow as well as forecast are ignored
+  - Default value of mySensor_tomorrow / mySensor_forecast is the value of mySensor_today
+- In the entity, an attribute is expected named attr_today_arr / attr_tomorow_arr / attr_forecast_arr. The attribute must exist in the corresponding mySensor_today / mySensor_tomorrow / mySensor_forecast
+- Each of the attributes must contain pairs named alike. The default names are 'hour' and 'price' and can be overridden using the parameters timeTagStr and priceTagStr
+
+### Search mode
+timeAdherenceStr controls how the macro uses earliestDatetime / latestDatetime. 
+- If timeAdherenceStr is ommitted or set to 'default', the macro will adjust earliestDatetime / latestDatetime to match a earliestDatetime equal to <ins>now</ins>.
+- If set to strict, the earliestDatetime / latestDatetime will not be adjusted. If matching time window is found, the information will only be returned if this is in the present. Otherwise an empty set is returned.
+- If set to forced, the earliestDatetime / latestDatetime will not be adjusted. Information will be returned irrespectively of this being in the past or present.
+
+### Data returned
+returnFirstBool will define (if true) to return the earliest possible match. If false, the latest match will be returned.
+
+### Prices
+By default the macro will detect for how long the prices are valid. This is done by taking the time difference of two first prices found. Should only one price be found, 1 hour is assumed. This allows for a 
+later adjustment in the pricing mode (e.g. pricing per half hour instead of hourly) without having to change the macro.
+
+### Slicing / weights
+If data is available on how much power (normally) is expected consumed, weights can be added when calling the macro. To allow some variation, an hour is divided into smaller parts (slices). Each weight is
+attributed to a slice, and is only used once during a calculation.</br>
+Valid values for slices are [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]. The length of a slice is calculated as 60min/slice. The rule applied is that either of ((slice length) % (price valid length)) or 
+((price valid length) % (slice length)) must be equal to 0. Furthermore (60 % slice) must be equal to 0. if neither is the case, an error is reported back.</br>
+The macro may add additional slicing if needed due to the settings of <ins>slices</ins> and the time prices.
 
 ## Code examples
 ### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow
