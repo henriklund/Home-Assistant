@@ -7,7 +7,7 @@ cheapest /most expensive period will occur
 ### Basic use
 The makro can be called adding just the mySensor_today parameter. Any missing parameter will have a default
 value. Paramaters can be added in any order providing their parameter name is used. If parametername is omitted,
-the correct order of parameters is required to ensure correct parsing. E.g.:
+the correct order of parameters is required to ensure correct parsing. E.g.:</br>
   {{- PeriodPrice("sensor.edssensor", durationTimedelta=timedelta(minutes=90)) -}} 
 
 ### Parameters
