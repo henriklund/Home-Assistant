@@ -71,37 +71,49 @@ For any other mode, the returned value will be a string with the following conte
 
 ## Code examples
 ### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow
-              {%- set edsSensor         = "sensor.energidataservice" -%}
-              {%- set earliestDatetime  = now() -%}
-              {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
-              {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
-              {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
-              {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
-              {#- Get data from EnergiDataService, ignore forecasted values -#}
-              {{- PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default', attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
+            {% from 'Electricity.jinja' import PeriodPrice %}
+            {%- set edsSensor         = "sensor.energidataservice" -%}
+            {%- set earliestDatetime  = now() -%}
+            {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
+            {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
+            {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
+            {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
+            {#- Get data from EnergiDataService, ignore forecasted values -#}
+            {{- PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
               
 ### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow. Cascade two integrations for data
-              {%- set edsSensor         = "sensor.energidataservice" -%}
-              {%- set earliestDatetime  = now() -%}
-              {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
-              {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
-              {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
-              {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
+            {% from 'Electricity.jinja' import PeriodPrice %}
+            {%- set edsSensor         = "sensor.energidataservice" -%}
+            {%- set earliestDatetime  = now() -%}
+            {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
+            {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
+            {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
+            {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
 
-              {#- Get data from EnergiDataService, ignore forecasted values -#}
-              {%- set resultEDS = PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default', attr_forecast_arr="",hint="Energi Data Service") | from_json -%}
-              {%- if resultEDS.cheapPrice != none and resultEDS.latestDatetime >= latestDatetime |string -%}
-                {{ resultEDS }}
+            {#- Get data from EnergiDataService, ignore forecasted values -#}
+            {%- set resultEDS = PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="",hint="Energi Data Service") | from_json -%}
+            {%- if resultEDS.cheapPrice != none and resultEDS.latestDatetime >= latestDatetime |string -%}
+              {{ resultEDS }}
+            {%- else -%}
+              {%- set slSensor = "sensor.stromligning_current_price_vat" %}
+              {%- set slSensor_tomorrow= "binary_sensor.stromligning_tomorrow_available_vat" %}
+              {%- set resultSL = PeriodPrice(slSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_today_arr="prices",timeTagStr="start",mySensor_tomorrow=slSensor_tomorrow,attr_tomorrow_arr="prices",hint="Strømligning") | from_json %}
+              {%- if resultSL.cheapPrice != none and resultSL.latestDatetime >= latestDatetime |string -%}
+                {{ resultSL }}
               {%- else -%}
-                {%- set slSensor = "sensor.stromligning_current_price_vat" %}
-                {%- set slSensor_tomorrow= "binary_sensor.stromligning_tomorrow_available_vat" %}
-                {%- set resultSL = PeriodPrice(slSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default',attr_today_arr="prices",timeTagStr="start",mySensor_tomorrow=slSensor_tomorrow,attr_tomorrow_arr="prices",hint="Strømligning") | from_json %}
-                {%- if resultSL.cheapPrice != none and resultSL.latestDatetime >= latestDatetime |string -%}
-                  {{ resultSL }}
-                {%- else -%}
-                  {#- Last resort. If neither integration returns usable data, just use what EnergiDataService offered -#}
-                  {{ resultEDS }}
-                {%- endif -%}
+                {#- Last resort. If neither integration returns usable data, just use what EnergiDataService offered -#}
+                {{ resultEDS }}
               {%- endif -%}
+            {%- endif -%}
 
 The last example can be extended by using additional integrations (e.g. Nordpool).
+
+
+### Get cheapest hour within the next 12 hours
+            {%- from 'Electricity.jinja' import PeriodPrice -%}
+            {%- set edsSensor           = "sensor.energidataservice" -%}
+            {%- set earliestDatetime    = now() -%}
+            {%- set latestDatetime      = earliestDatetime + timedelta(hours=12) -%}
+            {%- set durationTimedelta   = timedelta(hours=1 ) -%}
+            {#- Get data from EnergiDataService, ignore forecasted values -#}
+            {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
