@@ -99,6 +99,9 @@ For any other mode, the returned value will be a string with the following conte
                 {%- if resultSL.cheapPrice != none and resultSL.latestDatetime >= latestDatetime |string -%}
                   {{ resultSL }}
                 {%- else -%}
+                  {#- Last resort. If neither integration returns usable data, just use what EnergiDataService offered -#}
                   {{ resultEDS }}
                 {%- endif -%}
+              {%- endif -%}
+
 The last example can be extended by using additional integrations (e.g. Nordpool).
