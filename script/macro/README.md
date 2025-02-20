@@ -70,7 +70,7 @@ For any other mode, the returned value will be a string with the following conte
 
 
 ## Code examples
-### Dishwasher must be run at cheapeast hour, but be completed by 06:00 tomorrow
+### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow
               {%- set edsSensor         = "sensor.energidataservice" -%}
               {%- set earliestDatetime  = now() -%}
               {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
@@ -80,7 +80,7 @@ For any other mode, the returned value will be a string with the following conte
               {#- Get data from EnergiDataService, ignore forecasted values -#}
               {{- PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default', attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
               
-### Dishwasher must be run at cheapeast hour, but be completed by 06:00 tomorrow. Cascade two integrations for data
+### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow. Cascade two integrations for data
               {%- set edsSensor         = "sensor.energidataservice" -%}
               {%- set earliestDatetime  = now() -%}
               {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
