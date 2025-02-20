@@ -1,16 +1,14 @@
-# **Macros**
-
-## electricity.jinja
+# electricity.jinja
 This macro can, based on sensors with known energy prices, calculate when, within a given timeframe, the
 cheapest /most expensive period will occur 
 
-### Basic use
+## Basic use
 The makro can be called adding just the mySensor_today parameter. Any missing parameter will have a default
 value. Paramaters can be added in any order providing their parameter name is used. If parametername is omitted,
 the correct order of parameters is required to ensure correct parsing. E.g.:</br>
   {{- PeriodPrice("sensor.edssensor", durationTimedelta=timedelta(minutes=90)) -}} 
 
-### Parameters
+## Parameters
 Required = *
 | Parameter | Description |
 |-----------|-------------|
@@ -32,7 +30,7 @@ Required = *
 | slices                 |Number (1-60) of an hour if the prices retrieved from mySensor is less than an hour (e.g. 30mins), then the acceptable range will also be reduced.|
 | weights                |set [] of number of kWh expected consumed (during each slice.|
 
-### Returns
+## Returns
 Macro returns a STRING(!) based on the MODE setting. In case of a mode of default or details, the returned string will
 be json formatted and must be converted using the from_json filter.
 
@@ -69,3 +67,38 @@ For any other mode, the returned value will be a string with the following conte
 |expensivePrice | String value of price if 1 kW is used each hour during most expensive time. If weights are supplied, the amount of kWh is calculated from weights. None if no period found |
 |expensiveStart | Datetime string of when most expensive time starts |
 |expensiveEnd   | Datetime string of when most expensive time ends |
+
+
+## Code examples
+### Dishwasher must be run at cheapeast hour, but be completed by 06:00 tomorrow
+              {%- set edsSensor         = "sensor.energidataservice" -%}
+              {%- set earliestDatetime  = now() -%}
+              {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
+              {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
+              {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
+              {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
+              {#- Get data from EnergiDataService, ignore forecasted values -#}
+              {{- PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default', attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
+              
+### Dishwasher must be run at cheapeast hour, but be completed by 06:00 tomorrow. Cascade two integrations for data
+              {%- set edsSensor         = "sensor.energidataservice" -%}
+              {%- set earliestDatetime  = now() -%}
+              {#- Add 20min for the normal cycle of dishwasher cooling off and opening door -#}
+              {%- set durationTimedelta =  timedelta(minutes=20 + states('sensor.dishwasher_remaining_time') | int(90)) -%}
+              {#- Dishwasher is precoded to start 04:30 at the latest, thus providing 'failsafe' -#}
+              {%- set latestDatetime    = earliestDatetime + timedelta(minutes=states('sensor.dishwasher_start_time') | int(8*60)) + durationTimedelta -%}
+
+              {#- Get data from EnergiDataService, ignore forecasted values -#}
+              {%- set resultEDS = PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default', attr_forecast_arr="",hint="Energi Data Service") | from_json -%}
+              {%- if resultEDS.cheapPrice != none and resultEDS.latestDatetime >= latestDatetime |string -%}
+                {{ resultEDS }}
+              {%- else -%}
+                {%- set slSensor = "sensor.stromligning_current_price_vat" %}
+                {%- set slSensor_tomorrow= "binary_sensor.stromligning_tomorrow_available_vat" %}
+                {%- set resultSL = PeriodPrice(slSensor, earliestDatetime, latestDatetime, durationTimedelta, true, 'default',attr_today_arr="prices",timeTagStr="start",mySensor_tomorrow=slSensor_tomorrow,attr_tomorrow_arr="prices",hint="Strømligning") | from_json %}
+                {%- if resultSL.cheapPrice != none and resultSL.latestDatetime >= latestDatetime |string -%}
+                  {{ resultSL }}
+                {%- else -%}
+                  {{ resultEDS }}
+                {%- endif -%}
+The last example can be extended by using additional integrations (e.g. Nordpool).
