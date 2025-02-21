@@ -30,7 +30,7 @@ Required = *
 | mode                   |default / details /</br>cheapPrice / cheapStart / cheapStart / isCheapNow</br>expensivePrice / expensiveStart / expensiveStart / isExpensiveNow|
 | hint                   |String to be returned as part of the result. This could (e.g.) be the name of the integration providing data|
 | slices                 |Number (1-60) of an hour if the prices retrieved from mySensor is less than an hour (e.g. 30mins), then the acceptable range will also be reduced.|
-| weights                |set [] of number of kWh expected consumed (during each slice.|
+| kwh_usage              |set [] of number, or total number of kWh expected consumed. If only one number is provided, this is assumed to be be total consumption and will be distributed evenly across duration.|
 
 ## Returns
 Macro returns a STRING(!) based on the MODE setting. In case of a mode of default or details, the returned string will
@@ -63,10 +63,10 @@ For any other mode, the returned value will be a string with the following conte
 
 | Mode      | Description |
 |-----------|-------------|
-|cheapPrice     | String value of price if 1 kW is used each hour during cheapest time. If weights are supplied, the amount of kWh is calculated from weights. None if no period found |
+|cheapPrice     | String value of price if 1 kW is used each hour during cheapest time. If kwh_usage is supplied, the amount of kWh is calculated from this. None if no period found |
 |cheapStart     | Datetime string of when cheapest time starts |
 |cheapEnd       | Datetime string of when cheapest time ends |
-|expensivePrice | String value of price if 1 kW is used each hour during most expensive time. If weights are supplied, the amount of kWh is calculated from weights. None if no period found |
+|expensivePrice | String value of price if 1 kW is used each hour during most expensive time. If kwh_usage are supplied, the amount of kWh is calculated from this. None if no period found |
 |expensiveStart | Datetime string of when most expensive time starts |
 |expensiveEnd   | Datetime string of when most expensive time ends |
 
@@ -95,11 +95,11 @@ returnFirstBool will define (if true) to return the earliest possible match. If 
 By default the macro will detect for how long the prices are valid. This is done by taking the time difference of two first prices found. Should only one price be found, 1 hour is assumed. This allows for a 
 later adjustment in the pricing mode (e.g. pricing per half hour instead of hourly) without having to change the macro.
 
-### Slicing / weights
-If data is available on how much power (normally) is expected consumed, weights can be added when calling the macro. To allow some variation, an hour is divided into smaller parts (slices). Each weight is
-attributed to a slice, and is only used once during a calculation.</br>
+### Slicing / kwh_usage
+If data is available on how much power (normally) is expected consumed, kwh_usage can be added when calling the macro. To allow some variation, an hour is divided into smaller parts (slices). Each part of the kwh_usage list is
+attributed to a slice, and is only used once during a calculation. If a number is provided instead of a list, the number is assumed to be the total consumption and will be distributed evenly across the duration.</br>
 Valid values for slices are [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]. The length of a slice is calculated as 60min/slice. The rule applied is that either of ((slice length) % (price valid length)) or 
-((price valid length) % (slice length)) must be equal to 0. Furthermore (60 % slice) must be equal to 0. if neither is the case, an error is reported back.</br>
+((price valid length) % (slice length)) must be equal to 0. Furthermore, the [slice length] and the [price valid length] must differ. if neither is the case, an error is reported back.</br>
 The macro may add additional slicing if needed due to the settings of <ins>slices</ins> and the time prices.
 
 ## Code examples
@@ -150,3 +150,12 @@ The last example can be extended by using additional integrations (e.g. Nordpool
             {%- set durationTimedelta   = timedelta(hours=1 ) -%}
             {#- Get data from EnergiDataService, ignore forecasted values -#}
             {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="",hint="Energi Data Service") | from_json -}}
+
+### Get cheapest period within the next 12 hours, where power consumption expected is 1.2kWh, distributed (in 15 minute intervals) to be 0.4kWh, 0.3kWh, 0.18kWh, 0.17kWh, 0.1 kWh and 0.05kWh.
+            {%- from 'Electricity.jinja' import PeriodPrice -%}
+            {%- set edsSensor           = "sensor.energidataservice" -%}
+            {%- set earliestDatetime    = now() -%}
+            {%- set latestDatetime      = earliestDatetime + timedelta(hours=12) -%}
+            {%- set durationTimedelta   = timedelta(minutes=90 ) -%}
+            {#- Get data from EnergiDataService, ignore forecasted values -#}
+            {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="", slices=4, kwh_usage=[0.4,0.3,0.18,0.17,0.1,0.05], hint="Energi Data Service") | from_json -}}
