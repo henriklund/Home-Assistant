@@ -109,7 +109,7 @@
         {%- set status="invalidSlice" -%}
       {%- else -%}
         {%- set status = "ok" -%}
-        {%- set sliceWindow = usageWindow if usageWindow is defined and usageWindow is number else 60 -%}
+        {%- set usageWindow = usageWindow if usageWindow is defined and usageWindow is number else 60 -%}
       {%- endif -%}
 
       {%- if prices | length >= 2 -%}
@@ -127,22 +127,22 @@
   {%- set durationMinutesResidual= durationMinutes % priceWindow -%}
   {%- set durationUnits          = ((durationMinutes // priceWindow) + (1 if durationMinutesResidual > 0 else 0)) | int -%}
 
-  {%- set reqUsageSlices = (1 if durationMinutes % sliceWindow != 0 else 0) -%}
+  {%- set reqUsageSlices = (1 if durationMinutes % usageWindow != 0 else 0) -%}
   {#- Build a khw_usage list if a number is provided instead of a list -#}
   {%- if kwh_usage is not sequence and kwh_usage is number -%}
-    {%- set tmp = kwh_usage / (durationMinutes / usageWindow) -%}
+    {%- set tmp = (kwh_usage / durationMinutes) * usageWindow -%}
     {%- set tmpSet = namespace(dict = []) -%}  
     {%- for i in range((durationMinutes // usageWindow) | int) -%}
       {%- set tmpSet.dict = tmpSet.dict + [tmp] -%}
     {%- endfor -%}
-    {%- set tmpSet.dict = tmpSet.dict + [(kwh_usage - tmpSet.dict | sum) | round(6) * usageWindow / (durationMinutes % sliceWindow) ] -%}
+    {%- set tmpSet.dict = tmpSet.dict + [(kwh_usage - tmpSet.dict|sum) * (0 if durationMinutes % usageWindow == 0 else (usageWindow / (durationMinutes % usageWindow))) | round(6) ] -%}
     {%- set kwh_usage = tmpSet.dict -%}
   {%- endif -%}
   {%- set reqUsageSlices = reqUsageSlices + (durationMinutes // usageWindow) -%}
   {%- set usageLen = kwh_usage | length if kwh_usage is sequence and kwh_usage is not string else 0 -%} 
   {%- if usageLen==0 -%}
     {%- set kwh_usage=[] -%}
-    {%- set sliceWindow = 60 -%}
+    {%- set usageWindow = 60 -%}
   {%- elif usageLen>reqUsageSlices -%}
     {%- set kwh_usage=kwh_usage[:reqUsageSlices] -%}
   {%- elif usageLen<reqUsageSlices -%}
@@ -237,7 +237,7 @@
         {%- set priceStartTime     = prices[n][timeTagStr] + timedelta(minutes=loopSet[v]) -%}
         {%- if earliestDatetime <= priceStartTime -%}
           {%- set priceSet = namespace( idx=n, size=priceWindow, left=min(priceWindow-loopSet[v], durationMinutes) ) -%}
-          {%- set sliceSet = namespace( idx=0, size=sliceWindow, left=sliceWindow) -%}
+          {%- set sliceSet = namespace( idx=0, size=usageWindow, left=usageWindow) -%}
           
           {%- set totalLen = namespace(value=0) -%}
           {%- set timeSet = namespace(dict=[]) -%}
@@ -246,7 +246,7 @@
           {%- for i in range(500) if (totalLen.value<durationMinutes) and (usageLen == 0 or sliceSet.idx < kwh_usage | length) and priceSet.idx < arrSize -%}
             {%- set workLen  = min(priceSet.left, sliceSet.left, durationMinutes - totalLen.value ) -%}
             {%- set kwh = 1 if usageLen == 0 else kwh_usage[sliceSet.idx] -%}
-            {%- set priceFactor        = kwh * workLen / sliceWindow -%}
+            {%- set priceFactor        = kwh * workLen / usageWindow -%}
             {%- set kwh_price          = prices[priceSet.idx][priceTagStr] -%}
             {%- set pricing.value      = pricing.value + kwh_price * priceFactor -%}
             {%- set timeValue          = priceStartTime + timedelta(minutes=totalLen.value) -%}
@@ -260,7 +260,7 @@
             
             {%- set sliceSet.left      = sliceSet.left - workLen -%}
             {%- if sliceSet.left == 0 -%}
-              {%- set sliceSet.left = sliceWindow -%}
+              {%- set sliceSet.left = usageWindow -%}
               {%- set sliceSet.idx = sliceSet.idx + 1 -%}
             {%- endif  -%}
 
@@ -302,7 +302,7 @@
                     dict( cheapWindow=resultCheap.window,
                           expensiveWindow=resultExpensive.window,
                           pricingWindow   = priceWindow | int,
-                          sliceWindow     = sliceWindow | int,
+                          usageWindow     = usageWindow | int,
                           **result) -%}
   {%- set result = dict(earliestDatetime= earliestDatetime|string, 
                         latestDatetime  = latestDatetime|string, 
