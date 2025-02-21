@@ -90,14 +90,12 @@
     {%- set attr_forecast_arr = "" -%}
     {%- set mySensor_forecast = "" -%}
   {%- endif -%}
-  {#- Retrieve energy prices
-      If, under 'strict' time adherence, where the provided latestDatetime is in the past, return a null price set -#}
+  
+  {#- Retrieve energy prices -#}
   {%- set prices        = ( state_attr(mySensor_today, attr_today_arr) or []) +
                            (state_attr(mySensor_tomorrow, attr_tomorrow_arr) or []) +
                            (state_attr(mySensor_forecast, attr_forecast_arr) or []) -%}
   {%- set prices_len = prices | length -%}
-
-  {%- set status = "ok" -%}
 
   {%- if prices == [] %} 
     {%- set status="noPrices" -%}
@@ -107,6 +105,15 @@
       {%- set prices_len = 0 -%}
       {%- set status="incorrectTagsProvided" -%}   
     {%- else -%}
+      {%- if slices is not number or slices not in [1,2,3,4,5,6,10,12,15,20,30,60] -%}
+        {%- set slices = 1 -%}
+        {%- set sliceWindow = 60 -%}
+        {%- set status="invalidSlice" -%}
+      {%- else -%}
+        {%- set status = "ok" -%}
+        {%- set sliceWindow = 60 / slices -%}  
+      {%- endif -%}
+
       {%- if prices | length >= 2 -%}
         {%- set priceWindow = ((prices[1][timeTagStr] - prices[0][timeTagStr]).total_seconds() / 60) | int(60) -%}
         {%- set pricesPerHour = 60 / priceWindow -%}
@@ -114,14 +121,36 @@
         {%- set priceWindow = 60 -%}
         {%- set pricesPerHour = 1 -%}    
       {%- endif -%}
-  
-      {%- if slices is not number or slices not in [1,2,3,4,5,6,10,12,15,20,30,60] -%}
-        {%- set slices = 1 -%}
-        {%- set sliceWindow = 60 -%}
-        {%- set status="invalidSlice" -%}
-      {%- else -%}
-        {%- set sliceWindow = 60 / slices -%}   
-      {%- endif -%}
+    {%- endif -%}
+  {%- endif -%}
+
+  {%- if status == "ok" -%}
+    {%- if (priceWindow != sliceWindow) and (priceWindow % sliceWindow == 0) -%}
+      {#- Split priceWindow -#}
+      {%- set tmpSet = namespace(dict = []) -%}
+      {%- set factor = (priceWindow / sliceWindow) | int %}
+      {%- set priceWindow = priceWindow / factor -%}
+      {%- set pricesPerHour = pricesPerHour * factor -%}     
+      {%- for entry in prices -%}
+        {%- for i in range(factor) -%}
+          {%- set tmpSet.dict = tmpSet.dict + [{timeTagStr:(entry[timeTagStr] + timedelta(minutes=priceWindow*i)),priceTagStr:entry[priceTagStr] | round(8)}] -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {%- set prices = tmpSet.dict -%}
+    {%- endif -%}
+
+    {%- if (priceWindow != sliceWindow) and (sliceWindow % priceWindow == 0) -%}
+      {#- Split priceWindow -#}
+      {%- set tmpSet = namespace(dict = []) -%}
+      {%- set factor = (sliceWindow / priceWindow) | int-%}
+      {%- set sliceWindow = sliceWindow / factor -%}
+      {%- set slices = slices * factor -%}     
+      {%- for entry in weights -%}
+        {%- for i in range(factor) -%}
+          {%- set tmpSet.dict = tmpSet.dict + [entry / factor]  -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {%- set weights = tmpSet.dict -%}
     {%- endif -%}
   {%- endif -%}
 
@@ -130,9 +159,9 @@
   {%- set durationTimedelta      = timedelta(minutes=minDuration) if durationTimedelta is not defined or durationTimedelta < timedelta(minutes=minDuration) else durationTimedelta -%}
   {%- set durationMinutes        = durationTimedelta.total_seconds() | int(minDuration * priceWindow) // 60 -%}
   {%- set durationMinutesResidual= durationMinutes % priceWindow -%}
-  {%- set durationHours          = (durationMinutes // priceWindow) + (1 if durationMinutesResidual > 0 else 0) -%}
+  {%- set durationHours          = ((durationMinutes // priceWindow) + (1 if durationMinutesResidual > 0 else 0)) | int -%}
 
-  {%- set reqWeightSlices = durationMinutes // priceWindow + 1 if durationMinutes % priceWindow != 0 else 0 -%}
+  {%- set reqWeightSlices = (durationMinutes // priceWindow + (1 if durationMinutes % priceWindow != 0 else 0)) | int -%}
   {%- set weightLen = weights | length if weights is sequence and weights is not string else 0 -%}
   {%- if weightLen==0 -%}
     {%- set weights=[] -%}
@@ -144,35 +173,6 @@
     {%- set status="tooFewWeights" -%}
   {%- endif -%}
 
-  {%- if priceWindow != sliceWindow and status == "ok" -%}
-    {%- if priceWindow % sliceWindow == 0 -%}
-      {#- Split priceWindow -#}
-      {%- set tmpSet = namespace(dict = []) -%}
-      {%- set factor = priceWindow / sliceWindow %}
-      {%- for entry in prices -%}
-        {%- for i in range(factor) -%}
-          {%- set tmpSet.dict = tmpSet.dict + [{timeTagStr:(entry[timeTagStr] + timedelta(minutes=priceWindow*i)),priceTagStr:entry[priceTagStr] | round(8)}] -%}
-        {%- endfor -%}
-      {%- endfor -%}
-      {%- set prices = tmpSet.dict -%}
-      {%- set priceWindow = priceWindow / factor -%}
-      {%- set pricesPerHour = pricesPerHour * factor -%}     
-    {%- endif -%}
-    
-    {%- if sliceWindow % priceWindow == 0 -%}
-      {#- Split priceWindow -#}
-      {%- set tmpSet = namespace(dict = []) -%}
-      {%- set factor = sliceWindow / priceWindow -%}
-      {%- for entry in weights -%}
-        {%- for i in range(factor) -%}
-          {%- set tmpSet.dict = tmpSet.dict + [entry] / factor -%}
-        {%- endfor -%}
-      {%- endfor -%}
-      {%- set weight = tmpSet.dict -%}
-      {%- set sliceWindow = sliceWindow / factor -%}
-      {%- set slices = slices * factor -%}     
-    {%- endif -%}
-  {%- endif -%}
   {%- set arrSize    = prices | length -%}
   {%- set prices_len = arrSize - durationHours | int + 1 -%}
   
@@ -216,24 +216,23 @@
     {%- set mode = "default" -%}
   {% endif %}
 
-  {#- Retrieve energy prices
-      If, under 'strict' time adherence, where the provided latestDatetime is in the past, return a null price set -#}
-  {%- set validTime = (timeAdherenceStr != "strict") or ( (timeAdherenceStr == "strict") and (latestDatetime >= now()) ) -%} 
-  
   {%- if status == "ok" %}
+    {#- If, under 'strict' time adherence, where the provided latestDatetime is in the past, return an error -#}
+    {%- set validTime = (timeAdherenceStr != "strict") or ( (timeAdherenceStr == "strict") and (latestDatetime >= now()) ) -%} 
     {%- if not validTime -%} 
       {%- set status="windowInPast" %}
     {%- endif -%}
   {%- endif -%}
+  
   {#-####################################################################-#}
   {#- Set result name spaces -#}
   {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None, window=[]) -%}
   {%- set resultExpensive = namespace(pricing=0,    priceStartTime=None, window=[]) -%}
 
   {#-####################################################################-#}
-  {#- Only run if we have price data -#}
+  {#- Only run if we have price data and no error so far -#}
   {%- if prices_len > 0 and status=="ok" -%}
-    {#- Do not allow latestDatetime to be after last price available makes no sense -#}
+    {#- Do not allow latestDatetime to be after last price available - makes no sense -#}
     {%- set tmp = prices[arrSize-1][timeTagStr] + timedelta(minutes=priceWindow) -%}
     {%- if latestDatetime > tmp -%}
       {%- set latestDatetime = tmp -%}
