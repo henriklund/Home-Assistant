@@ -127,26 +127,28 @@
   {%- set durationMinutesResidual= durationMinutes % priceWindow -%}
   {%- set durationUnits          = ((durationMinutes // priceWindow) + (1 if durationMinutesResidual > 0 else 0)) | int -%}
 
-  {%- set reqUsageSlices = (1 if durationMinutes % usageWindow != 0 else 0) -%}
-  {#- Build a khw_usage list if a number is provided instead of a list -#}
-  {%- if kwh_usage is not sequence and kwh_usage is number -%}
-    {%- set tmp = (kwh_usage / durationMinutes) * usageWindow -%}
-    {%- set tmpSet = namespace(dict = []) -%}  
-    {%- for i in range((durationMinutes // usageWindow) | int) -%}
-      {%- set tmpSet.dict = tmpSet.dict + [tmp] -%}
-    {%- endfor -%}
-    {%- set tmpSet.dict = tmpSet.dict + [(kwh_usage - tmpSet.dict|sum) * (0 if durationMinutes % usageWindow == 0 else (usageWindow / (durationMinutes % usageWindow))) | round(6) ] -%}
-    {%- set kwh_usage = tmpSet.dict -%}
-  {%- endif -%}
-  {%- set reqUsageSlices = reqUsageSlices + (durationMinutes // usageWindow) -%}
-  {%- set usageLen = kwh_usage | length if kwh_usage is sequence and kwh_usage is not string else 0 -%} 
-  {%- if usageLen==0 -%}
-    {%- set kwh_usage=[] -%}
-    {%- set usageWindow = 60 -%}
-  {%- elif usageLen>reqUsageSlices -%}
-    {%- set kwh_usage=kwh_usage[:reqUsageSlices] -%}
-  {%- elif usageLen<reqUsageSlices -%}
-    {%- set status="notEnoughKwhPoints" -%}
+  {%- if status=="ok" -%}
+    {%- set reqUsageSlices = (1 if durationMinutes % usageWindow != 0 else 0) -%}
+    {#- Build a khw_usage list if a number is provided instead of a list -#}
+    {%- if kwh_usage is not sequence and kwh_usage is number -%}
+      {%- set tmp = (kwh_usage / durationMinutes) * usageWindow -%}
+      {%- set tmpSet = namespace(dict = []) -%}  
+      {%- for i in range((durationMinutes // usageWindow) | int) -%}
+        {%- set tmpSet.dict = tmpSet.dict + [tmp] -%}
+      {%- endfor -%}
+      {%- set tmpSet.dict = tmpSet.dict + [(kwh_usage - tmpSet.dict|sum) * (0 if durationMinutes % usageWindow == 0 else (usageWindow / (durationMinutes % usageWindow))) | round(6) ] -%}
+      {%- set kwh_usage = tmpSet.dict -%}
+    {%- endif -%}
+    {%- set reqUsageSlices = reqUsageSlices + (durationMinutes // usageWindow) -%}
+    {%- set usageLen = kwh_usage | length if kwh_usage is sequence and kwh_usage is not string else 0 -%} 
+    {%- if usageLen==0 -%}
+      {%- set kwh_usage=[] -%}
+      {%- set usageWindow = 60 -%}
+    {%- elif usageLen>reqUsageSlices -%}
+      {%- set kwh_usage=kwh_usage[:reqUsageSlices] -%}
+    {%- elif usageLen<reqUsageSlices -%}
+      {%- set status="notEnoughKwhPoints" -%}
+    {%- endif -%}
   {%- endif -%}
 
   {%- set arrSize    = prices | length -%}
