@@ -242,9 +242,9 @@
           {%- set totalLen = namespace(value=0) -%}
           {%- set timeSet = namespace(dict=[]) -%}
           {%- set pricing  = namespace(value=0) -%}
-          {#(n + i < arrSize)#}
+
           {%- for i in range(500) if (totalLen.value<durationMinutes) and (usageLen == 0 or sliceSet.idx < kwh_usage | length) and priceSet.idx < arrSize -%}
-            {%- set workLen  = min(priceSet.left, sliceSet.left, durationMinutes) -%}
+            {%- set workLen  = min(priceSet.left, sliceSet.left, durationMinutes - totalLen.value ) -%}
             {%- set kwh = 1 if usageLen == 0 else kwh_usage[sliceSet.idx] -%}
             {%- set priceFactor        = kwh * workLen / sliceWindow -%}
             {%- set kwh_price          = prices[priceSet.idx][priceTagStr] -%}
@@ -270,7 +270,7 @@
           {%- if (pricing.value<resultCheap.pricing or
                  (returnFirstBool and pricing.value<=resultCheap.pricing and (resultCheap.priceStartTime is none or priceStartTime<resultCheap.priceStartTime)) or
                  (not returnFirstBool and pricing.value<=resultCheap.pricing and (resultCheap.priceStartTime is none or priceStartTime>resultCheap.priceStartTime))
-                 ) -%}
+                 ) and (priceStartTime + timedelta(minutes=durationMinutes) <= latestDatetime) -%}
             {%- set resultCheap.pricing        = pricing.value -%}
             {%- set resultCheap.priceStartTime = priceStartTime -%}
             {%- set resultCheap.window         = timeSet.dict -%}
@@ -278,7 +278,7 @@
           {%- if (pricing.value>resultExpensive.pricing or
                  (returnFirstBool and pricing.value>=resultExpensive.pricing and (resultExpensive.priceStartTime is none or priceStartTime<resultExpensive.priceStartTime)) or
                  (not returnFirstBool and pricing.value>=resultExpensive.pricing and (resultExpensive.priceStartTime is none or priceStartTime>resultExpensive.priceStartTime))
-                 ) -%}
+                 ) and (priceStartTime + timedelta(minutes=durationMinutes) <= latestDatetime) -%}
             {%- set resultExpensive.pricing        = pricing.value -%}
             {%- set resultExpensive.priceStartTime = priceStartTime -%}
             {%- set resultExpensive.window         = timeSet.dict -%}
