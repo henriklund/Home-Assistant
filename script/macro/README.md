@@ -101,12 +101,12 @@ attributed to a slice, and is only used once during a calculation. If a number i
 The usageWindow must be a whole number between 1 and 60 minutes. This duration is applied to each of the slices listed in kwh_usage. If the total usageWindow for all slices is less than the duration time, an error will be returned. If kwh_usage is a number instead of a list, the macro will create its own kwh_usage list and spread the provided kWh evenly across the duration (considering the usageWindow requested). If kwh_usage is empty, a hourly usage of 1 kWh is assumed. If no usageWindow is provided, a window of 60 minutes is assumed.
 | usageWincow | kwh_usage | Description |
 |-------------|-----------|-------------|
-| included (1-60) | number | <ins>duration</ins> is interrnally split into small slices with the same length as <ins>usage_window</ins> and <ins>kwh_usage</ins> is split equally amongst these slices|
-| included (1-60) | list   | If <ins>usageWindow</ins> multiplied by length of <ins>kwh_usage/ins> does not exceed duration, an error is raised|
-| included (1-60) | not included | If <ins>usageWindow</ins> multiplied by length of <ins>kwh_usage</ins> does not exceed duration, an error is raised. Hourly usage is assumed to be one 1Kw|
-| not included | list   | If <ins>usageWindow</ins> multiplied by default length of <ins>kwh_usage/ins> (60 minss) does not exceed duration, an error is raised|
-| not included | number | <ins>kwh_usage</ins> is assumed evenly distributed across <ins>duration</ins>. An internal split of <ins>kwh_usage</ins> is created based on the default length of <ins>usageWindow</ins>.|
-| not included | not included | An hourly y usage of one 1Kw is assumed |
+| included (1-60) | number | _duration_ is interrnally split into small slices with the same length as _usage_window_ and _kwh_usage_ is split equally amongst these slices|
+| included (1-60) | list   | If _usageWindow_ multiplied by length of _kwh_usage_ does not exceed duration, an error is raised|
+| included (1-60) | not included | If _usageWindow_ multiplied by length of _kwh_usage_ does not exceed duration, an error is raised. Hourly usage is assumed to be one 1kWh|
+| not included | list   | If _usageWindow_ multiplied by default length of _kwh_usage_ (60 mins) does not exceed duration, an error is raised|
+| not included | number | _kwh_usage_ is assumed evenly distributed across _duration_. An internal split of _kwh_usage_ is created based on the default length of _usageWindow_|
+| not included | not included | An hourly sage of one 1kWh is assumed |
 
 **Note:**<br/>
 For each hour there are up to three points upon calculation is based; first minute of the hour, the current minute and the last minute that is (duration % hour) before the hour. The majority of iterations will have 2 or (on rare occassions) 1 data points. If a low usageWindow is applied (eg. 5), this means that if seeking a one hour window, there for every 24 hrs will up to 48 * (12+2 - the 2 is for the outliers) * 12 = 8.064 calculations to be done to find the lowest / highest price. Extending the period from 2 days (today + tomorrow) to also include a 7 days forecast means that every time a sensor needs to be updated, +72.576 calculations are made. Thus, it is important to consider how small a usageWindow is needed when extending the lastDatetime beyond 48 hours as well how long a period of cheap / expensive price should be looked for. Remember to also take the type of hardware on which Home Assistant is running into account. If in doubt, test the configuration in _Template_ under _Developer tools_ by addion a _{#-% from 'Electricity.jinja' import PeriodPrice %-#}_ in front of the code (see examples below) to get an impression of how the macro performs. 
