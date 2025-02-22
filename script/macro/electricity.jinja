@@ -203,7 +203,7 @@
   
   {#-####################################################################-#}
   {#- Set result name spaces -#}
-  {%- set resultCheap     = namespace(pricing=9999, priceStartTime=None, window=[]) -%}
+  {%- set resultCheap     = namespace(pricing=99999999, priceStartTime=None, window=[]) -%}
   {%- set resultExpensive = namespace(pricing=0,    priceStartTime=None, window=[]) -%}
 
   {#-####################################################################-#}
@@ -227,7 +227,15 @@
       {%- set tmpVal = priceWindow - durationMinutesResidual -%}
       {%- set loopSet = loopSet + ([] if tmpVal in loopSet else [tmpVal]) -%}
     {%- endif -%}
-    {%- for n in range(prices_len) if (true if n+1==arrSize else earliestDatetime <= prices[n+1][timeTagStr]) and (prices[n][timeTagStr]+timedelta(minutes=priceWindow) <= latestDatetime) -%}
+    
+    {%- set priceSet          = namespace( idx=0, size=priceWindow, left=0 ) -%}
+    {%- set sliceSet          = namespace( idx=0, size=usageWindow, left=0 ) -%}
+
+    {%- set totalLen          = namespace(value=0) -%}
+    {%- set timeSet           = namespace(dict=[]) -%}
+    {%- set pricing           = namespace(value=0) -%}
+
+    {%- for n in range(prices_len) if (n+1==arrSize or earliestDatetime <= prices[n+1][timeTagStr]) and (prices[n][timeTagStr]+timedelta(minutes=priceWindow) <= latestDatetime) -%}
       {#- Calculat pricing on the hour, at the current minute number as well as at the end of an hour -#}
       {%- if (earliestDatetime - timedelta(minutes=earliestDatetimeMinute)) == prices[n][timeTagStr] -%}
         {%- set tmpVal = earliestDatetimeMinute % priceWindow -%}
@@ -238,12 +246,14 @@
       {%- for v in range(loopSet | length) -%}
         {%- set priceStartTime      = prices[n][timeTagStr] + timedelta(minutes=loopSet[v]) -%}
         {%- if earliestDatetime <= priceStartTime -%}
-          {%- set priceSet          = namespace( idx=n, size=priceWindow, left=min(priceWindow-loopSet[v], durationMinutes) ) -%}
-          {%- set sliceSet          = namespace( idx=0, size=usageWindow, left=usageWindow) -%}
+          {%- set priceSet.idx      = n -%}
+          {%- set priceSet.left     = min(priceWindow-loopSet[v], durationMinutes) -%}
+          {%- set sliceSet.idx      = 0 -%}
+          {%- set sliceSet.left     = usageWindow -%}
           
-          {%- set totalLen          = namespace(value=0) -%}
-          {%- set timeSet           = namespace(dict=[]) -%}
-          {%- set pricing           = namespace(value=0) -%}
+          {%- set totalLen.value    = 0 -%}
+          {%- set timeSet.dict      = [] -%}
+          {%- set pricing.value     = 0 -%}
 
           {%- for i in range(reqUsageSlices * (arrSize+2)) if (totalLen.value<durationMinutes) and (usageLen == 0 or sliceSet.idx < kwh_usage | length) and priceSet.idx < arrSize -%}
             {%- set workLen         = min(priceSet.left, sliceSet.left, durationMinutes - totalLen.value ) -%}
