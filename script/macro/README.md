@@ -5,7 +5,7 @@ cheapest /most expensive period will occur
 ## Basic use
 The makro can be called adding just the mySensor_today parameter. Any missing parameter will have a default
 value. Paramaters can be added in any order providing their parameter name is used. If parametername is omitted,
-the correct order of parameters is required to ensure correct parsing. E.g.:</br>
+the correct order of parameters is required to ensure correct parsing. E.g.:<br/>
   {{- PeriodPrice("sensor.edssensor", durationTimedelta=timedelta(minutes=90)) -}} 
 
 ## Parameters
@@ -17,7 +17,7 @@ Required = *
 | latestDatetime         |(DateTime) Exact date/time of end of window during which electricity will be used|
 | durationTimedelta      |(TimeDelta) Duration of electricity usage formatted as a TimeDelta|
 | returnFirstBool        |(Boolean) Default to true to use first occurrence of the lowest price, otherwise use the last|
-| timeAdherenceStr       |(String) Influences the behaviour when seeking low / high cost</br></br>**default** = adjusts time to 'now' if time is in the past</br>**strict**  = do not adjust time and return empty result if window is in the past</br>**forced**  = do not adjust time and return result even if window is in the past|
+| timeAdherenceStr       |(String) Influences the behaviour when seeking low / high cost<br/><br/>**default** = adjusts time to 'now' if time is in the past<br/>**strict**  = do not adjust time and return empty result if window is in the past<br/>**forced**  = do not adjust time and return result even if window is in the past|
 | attr_today_arr         |(String) Name of attribute for today data - organized in pairs of time + price|
 | attr_tomorrow_arr      |(String) Name of attribute for tomoows data (if any) - organized in pairs of time + price|
 | attr_forecast_arr      |(String) Name of attribute for forecast data after tomorrow (if any) - organized in pairs of time + price|
@@ -27,7 +27,7 @@ Required = *
 | priceTagStr            |(String) Name attribute (in the pair) containng the price|
 | defaultDurationMinNum  |(Number) Default minimum duration of any period|
 | defaultPeriodHrsNum    |(Number) The default duration of hour to look for cheapest prices|
-| mode                   |default / details /</br>cheapPrice / cheapStart / cheapStart / isCheapNow</br>expensivePrice / expensiveStart / expensiveStart / isExpensiveNow|
+| mode                   |default / details /<br/>cheapPrice / cheapStart / cheapStart / isCheapNow<br/>expensivePrice / expensiveStart / expensiveStart / isExpensiveNow|
 | hint                   |String to be returned as part of the result. This could (e.g.) be the name of the integration providing data|
 | slices                 |Number (1-60) of an hour if the prices retrieved from mySensor is less than an hour (e.g. 30mins), then the acceptable range will also be reduced.|
 | kwh_usage              |set [] of number, or total number of kWh expected consumed. If only one number is provided, this is assumed to be be total consumption and will be distributed evenly across duration.|
@@ -53,12 +53,12 @@ When mode is default or details, the returned value (passed throught the from_js
 | isCheapNow                 | none if no cheap time period found, otherwise true / false dependent on whether right now is the cheapest period |
 | isExpensiveNow             | none if no expensive time period found, otherwise true / false dependent on whether right now is the most expensive period |
 | mode                       | Name of the mode used |
-| cheapWindow                | Explaination for calculation to reach cheapest price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
-| expensiveWindow            | Explaination for calculation to reach most expensive price.</br>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
+| cheapWindow                | Explaination for calculation to reach cheapest price.<br/>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
+| expensiveWindow            | Explaination for calculation to reach most expensive price.<br/>Set of [{ start, minutes, kWh_price, est_kWh },...] covering the whole duration. Start defines when each subset starts, length in minutes of the subset, kWh_price is the corresponding price and est_kWh is the kWh part of the corresponding slice. kWh_price * est_kWh is the estimated cost for the slice.|
 | status                     | Result of the operation. If not 'ok', then this is an warning / error |
 | hint                       | none or string as provided when  macro was called |
-</br>
-</br>
+<br/>
+<br/>
 For any other mode, the returned value will be a string with the following content:
 
 | Mode      | Description |
@@ -97,7 +97,7 @@ later adjustment in the pricing mode (e.g. pricing per half hour instead of hour
 
 ### Slicing / kwh_usage
 If data is available on how much power (normally) is expected consumed, kwh_usage can be added when calling the macro. To allow some variation, an hour is divided into smaller parts (slices). Each part of the kwh_usage list is
-attributed to a slice, and is only used once during a calculation. If a number is provided instead of a list, the number is assumed to be the total consumption and will be distributed evenly across the duration.</br>
+attributed to a slice, and is only used once during a calculation. If a number is provided instead of a list, the number is assumed to be the total consumption and will be distributed evenly across the duration.<br/>
 The usageWindow must be a whole number between 1 and 60 minutes. This duration is applied to each of the slices listed in kwh_usage. If the total usageWindow for all slices is less than the duration time, an error will be returned. If kwh_usage is a number instead of a list, the macro will create its own kwh_usage list and spread the provided kWh evenly across the duration (considering the usageWindow requested). If kwh_usage is empty, a hourly usage of 1 kWh is assumed. If no usageWindow is provided, a window of 60 minutes is assumed.
 | usageWincow | kwh_usage | Description |
 |-------------|-----------|-------------|
@@ -107,7 +107,8 @@ The usageWindow must be a whole number between 1 and 60 minutes. This duration i
 | not included | list   | If <ins>usageWindow</ins> multiplied by default length of <ins>kwh_usage/ins> (60 minss) does not exceed duration, an error is raised|
 | not included | number | <ins>kwh_usage</ins> is assumed evenly distributed across <ins>duration</ins>. An internal split of <ins>kwh_usage</ins> is created based on the default length of <ins>usageWindow</ins>.|
 | not included | not included | An hourly y usage of one 1Kw is assumed |
-**Note:**
+
+**Note:**<br/>
 For each hour there are up to three points upon calculation is based; first minute of the hour, the current minute and the last minute that is (duration % hour) before the hour. If a low usageWindow is applied (eg. 5), this means that for every 24 hrs there will up to 72 * (12+2) = 1.008 calculations to be done to find the lowest / highest price. Extending the period from 2 days (today + tomorrow) to also include a 7 days forecast means that every time a sensor is updater, +10.000 calculations are made. Thus, take into consideration how small a usageWindow is needed then extending the lastDatetime beyond 48 hours. When doing this also take into account the type of hardware on which Home Assistant is running.
 
 ## Code examples
