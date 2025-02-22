@@ -98,9 +98,7 @@ later adjustment in the pricing mode (e.g. pricing per half hour instead of hour
 ### Slicing / kwh_usage
 If data is available on how much power (normally) is expected consumed, kwh_usage can be added when calling the macro. To allow some variation, an hour is divided into smaller parts (slices). Each part of the kwh_usage list is
 attributed to a slice, and is only used once during a calculation. If a number is provided instead of a list, the number is assumed to be the total consumption and will be distributed evenly across the duration.</br>
-Valid values for slices are [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]. The length of a slice is calculated as 60min/slice. The rule applied is that either of ((slice length) % (price valid length)) or 
-((price valid length) % (slice length)) must be equal to 0. Furthermore, the [slice length] and the [price valid length] must differ. if neither is the case, an error is reported back.</br>
-The macro may add additional slicing if needed due to the settings of <ins>slices</ins> and the time prices.
+The usageWindow must be a whole number between 1 and 60 minutes. This duration is applied to each of the slices listed in kwh_usage. If the total usageWindow for all slices is less than the duration time, an error will be returned. If kwh_usage is a number instead of a list, the macro will create its own kwh_usage list and spread the provided kWh evenly across the duration (considering the usageWindow requested). If kwh_usage is empty, a hourly usage of 1 kWh is assumed. If no usageWindow is provided, a window of 60 minutes is assumed.
 
 ## Code examples
 ### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow
@@ -158,4 +156,4 @@ The last example can be extended by using additional integrations (e.g. Nordpool
             {%- set latestDatetime      = earliestDatetime + timedelta(hours=12) -%}
             {%- set durationTimedelta   = timedelta(minutes=90 ) -%}
             {#- Get data from EnergiDataService, ignore forecasted values -#}
-            {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="", slices=4, kwh_usage=[0.4,0.3,0.18,0.17,0.1,0.05], hint="Energi Data Service") | from_json -}}
+            {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="", usageWindow=15, kwh_usage=[0.4,0.3,0.18,0.17,0.1,0.05], hint="Energi Data Service") | from_json -}}
