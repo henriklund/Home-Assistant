@@ -229,10 +229,10 @@
     {%- endif -%}
     {%- for n in range(prices_len) if (true if n+1==arrSize else earliestDatetime <= prices[n+1][timeTagStr]) and (prices[n][timeTagStr]+timedelta(minutes=priceWindow) <= latestDatetime) -%}
       {#- Calculat pricing on the hour, at the current minute number as well as at the end of an hour -#}
-      {%- if (prices[n][timeTagStr]).minute <=  earliestDatetimeMinute <= (prices[n][timeTagStr] + timedelta(minutes=priceWindow-1)).minute -%}
+      {%- if (earliestDatetime - timedelta(minutes=earliestDatetimeMinute)) == prices[n][timeTagStr] -%}
         {%- set tmpVal = earliestDatetimeMinute % priceWindow -%}
         {%- set loopSet = loopSet + ([] if tmpVal in loopSet else [tmpVal]) -%}
-      {%- endif -%}     
+      {%- endif -%}
 
       {#- Iterate through the possible minute sets -#}
       {%- for v in range(loopSet | length) -%}
