@@ -106,7 +106,7 @@
       {%- set status="incorrectTagsProvided" -%}   
     {%- else -%}
       {%- if usageWindow is not number or (usageWindow > 60) or (usageWindow<1) or (usageWindow != usageWindow | int(0)) -%}
-        {%- set status="invalidSlice" -%}
+        {%- set status="invalidUsageWindow" -%}
       {%- else -%}
         {%- set status = "ok" -%}
         {%- set usageWindow = usageWindow if usageWindow is defined and usageWindow is number else 60 -%}
