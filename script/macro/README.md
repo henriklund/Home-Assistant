@@ -107,7 +107,8 @@ The usageWindow must be a whole number between 1 and 60 minutes. This duration i
 | not included | list   | If <ins>usageWindow</ins> multiplied by default length of <ins>kwh_usage/ins> (60 minss) does not exceed duration, an error is raised|
 | not included | number | <ins>kwh_usage</ins> is assumed evenly distributed across <ins>duration</ins>. An internal split of <ins>kwh_usage</ins> is created based on the default length of <ins>usageWindow</ins>.|
 | not included | not included | An hourly y usage of one 1Kw is assumed |
-
+**Note:**
+For each hour there are up to three points upon calculation is based; first minute of the hour, the current minute and the last minute that is (duration % hour) before the hour. If a low usageWindow is applied (eg. 5), this means that for every 24 hrs there will up to 72 * (12+2) = 1.008 calculations to be done to find the lowest / highest price. Extending the period from 2 days (today + tomorrow) to also include a 7 days forecast means that every time a sensor is updater, +10.000 calculations are made. Thus, take into consideration how small a usageWindow is needed then extending the lastDatetime beyond 48 hours. When doing this also take into account the type of hardware on which Home Assistant is running.
 
 ## Code examples
 ### Dishwasher must be run at cheapest hour, but be completed by 06:00 tomorrow
