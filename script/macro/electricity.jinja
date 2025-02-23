@@ -45,8 +45,8 @@
                             cheapPrice / cheapStart / cheapStart / isCheapNow
                             expensivePrice / expensiveStart / expensiveStart / isExpensiveNow
     hint                    String to be returned as part of the result. This could (e.g.) be the name of the integration providing data
-    slices                  Number (1-60) of an hour if the prices retrieved from mySensor is less than an hour (e.g. 30mins), then the
-                            acceptable range will also be reduced.
+    usageWindow             Number (1-60) of minutes of the length of each the each of kwh_usage items
+    kwh_usage               Either a List [] of numbers  or a single number. This is a representation of the expected kWh used. 
 
     Macro returns a STRING(!) based on the MODE setting
     mode = full
@@ -63,6 +63,7 @@
         isCheapNow                 none if no cheap time leftInPriceWindow found, otherwise true / false dependent on whether right now is the cheapest leftInPriceWindow 
         isExpensiveNow             none if no expensive time leftInPriceWindow found, otherwise true / false dependent on whether right now is the most expensive leftInPriceWindow
         hint                       none or string as provided when  macro was called 
+        status                     Status of the call
         * = only included if a corresponding leftInPriceWindow was found
     mode = cheapPrice
       String value of price if 1 kW is used each hour during cheapest time. None if no leftInPriceWindow found
@@ -187,8 +188,8 @@
  
   {%- if mode not in (
                         "default", "details",
-                        "cheapPrice", "cheapStart", "cheapStart", "isCheapNow", 
-                        "expensivePrice", "expensiveStart", "expensiveStart", "isExpensiveNow"
+                        "cheapprice", "cheapstart", "cheapend", "ischeapnow", 
+                        "expensiveprice", "expensivestart", "expensiveend", "isexpensivenow"
                       ) -%}
     {%- set mode = "default" -%}
   {%- endif -%}
@@ -327,21 +328,21 @@
                         FinalExpensiveDict | items | list,
                        **result) -%}  
 
-  {%- if mode == "cheapPrice" -%}
+  {%- if mode == "cheapprice" -%}
     {{- result.cheapPrice -}}
-  {%- elif mode == "cheapStart" -%}
-    {{- (result.cheapPriceStartTime if result.cheapPrice != none else none) | trim -}}
-  {%- elif mode == "cheapStart" -%}
-    {{- result.cheapPriceEndTime if result.cheapPrice != none else none -}}
-  {%- elif mode == "isCheapNow" -%}
+  {%- elif mode == "cheapstart" -%}
+    {{- result.cheapPriceStartTime  | as_datetime if result.cheapPrice != none else none -}}
+  {%- elif mode == "cheapend" -%}
+    {{- (result.cheapPriceStartTime | as_datetime + timedelta(minutes=result.duration)) if result.cheapPrice != none else none -}}
+  {%- elif mode == "ischeapnow" -%}
     {{- result.isCheapNow -}}
-  {%- elif mode == "expensivePrice" -%}
+  {%- elif mode == "expensiveprice" -%}
     {{- result.expensivePrice -}}
-  {%- elif mode == "expensiveStart" -%}
-    {{- result.expensivePriceStartTime if result.expensivePrice != none else none -}}
-  {%- elif mode == "expensiveStart" -%}
-    {{- result.expensivePriceEndTime if result.expensivePrice != none else none -}}
-  {%- elif mode == "isExpensiveNow" -%}
+  {%- elif mode == "expensivestart" -%}
+    {{- result.expensivePriceStartTime  | as_datetime if result.expensivePrice != none else none -}}
+  {%- elif mode == "expensiveend" -%}
+    {{- (result.expensivePriceStartTime | as_datetime + timedelta(minutes=result.duration)) if result.expensivePrice != none else none -}}
+  {%- elif mode == "isexpensivenow" -%}
     {{- result.isExpensiveNow -}}
   {%- else -%}
     {{- result | to_json -}}
