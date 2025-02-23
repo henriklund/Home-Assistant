@@ -27,10 +27,10 @@ Required = *
 | priceTagStr            |(String) Name attribute (in the pair) containng the price|
 | defaultDurationMinNum  |(Number) Default minimum duration of any period|
 | defaultPeriodHrsNum    |(Number) The default duration of hour to look for cheapest prices|
-| mode                   |default / details /<br/>cheapPrice / cheapStart / cheapStart / isCheapNow<br/>expensivePrice / expensiveStart / expensiveStart / isExpensiveNow|
+| mode                   |default / details /<br/>cheapPrice / cheapStart / expensiveStart / isCheapNow<br/>expensivePrice / expensiveStart / expensiveStart / isExpensiveNow|
 | hint                   |String to be returned as part of the result. This could (e.g.) be the name of the integration providing data|
-| slices                 |Number (1-60) of an hour if the prices retrieved from mySensor is less than an hour (e.g. 30mins), then the acceptable range will also be reduced.|
-| kwh_usage              |set [] of number, or total number of kWh expected consumed. If only one number is provided, this is assumed to be be total consumption and will be distributed evenly across duration.|
+| usageWindow            |Number (1-60) of minutes that each part of the kwg_usage list is valid for. If omitted, 60 will be used|
+| kwh_usage              |Either a list [] of numbers, or a single (total) number of expected kWh consumed.<br/>If only one number is provided, this is assumed to be be total consumption and will be distributed evenly across duration. If a list is provided, the consumption for that particular timeslice (of duration) will be the kWh listed. The length of each timeslice is given by _usageWindow_|
 
 ## Returns
 Macro returns a STRING(!) based on the MODE setting. In case of a mode of default or details, the returned string will
