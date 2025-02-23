@@ -114,7 +114,7 @@
       {%- endif -%}
 
       {%- if prices | length >= 2 -%}
-        {%- set priceWindow = ((prices[1][timeTagStr] - prices[0][timeTagStr]).total_seconds() / 60) | int(60) -%}
+        {%- set priceWindow = ((prices[1][timeTagStr] | as_datetime - prices[0][timeTagStr] | as_datetime).total_seconds() / 60) | int(60) -%}
       {%- else -%}
         {%- set priceWindow = 60 -%}
       {%- endif -%}
@@ -211,7 +211,7 @@
   {#- Only run if we have price data and no error so far -#}
   {%- if prices_len > 0 and status=="ok" -%}
     {#- Do not allow latestDatetime to be after last price available - makes no sense -#}
-    {%- set tmp = prices[arrSize-1][timeTagStr] + timedelta(minutes=priceWindow) -%}
+    {%- set tmp = prices[arrSize-1][timeTagStr] | as_datetime + timedelta(minutes=priceWindow) -%}
     {%- if latestDatetime > tmp -%}
       {%- set latestDatetime = tmp -%}
     {%- endif -%}
@@ -236,7 +236,7 @@
     {%- set timeSet           = namespace(dict=[]) -%}
     {%- set pricing           = namespace(value=0) -%}
 
-    {%- for n in range(prices_len) if (n+1==arrSize or earliestDatetime <= prices[n+1][timeTagStr]) and (prices[n][timeTagStr]+timedelta(minutes=priceWindow) <= latestDatetime) -%}
+    {%- for n in range(prices_len) if (n+1==arrSize or earliestDatetime <= prices[n+1][timeTagStr] | as_datetime) and (prices[n][timeTagStr] | as_datetime + timedelta(minutes=priceWindow) <= latestDatetime) -%}
       {#- Calculat pricing on the hour, at the current minute number as well as at the end of an hour -#}
       {%- if (earliestDatetime - timedelta(minutes=earliestDatetimeMinute)) == prices[n][timeTagStr] -%}
         {%- set tmpVal = earliestDatetimeMinute % priceWindow -%}
@@ -245,7 +245,7 @@
 
       {#- Iterate through the possible minute sets -#}
       {%- for v in range(loopSet | length) -%}
-        {%- set priceStartTime      = prices[n][timeTagStr] + timedelta(minutes=loopSet[v]) -%}
+        {%- set priceStartTime      = prices[n][timeTagStr] | as_datetime + timedelta(minutes=loopSet[v]) -%}
         {%- if earliestDatetime <= priceStartTime -%}
           {%- set priceSet.idx      = n -%}
           {%- set priceSet.left     = min(priceWindow-loopSet[v], durationMinutes) -%}
