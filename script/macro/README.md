@@ -169,3 +169,10 @@ The last example can be extended by using additional integrations (e.g. Nordpool
             {%- set durationTimedelta   = timedelta(minutes=90 ) -%}
             {#- Get data from EnergiDataService, ignore forecasted values -#}
             {{ PeriodPrice(edsSensor, earliestDatetime, latestDatetime, durationTimedelta,attr_forecast_arr="", usageWindow=15, kwh_usage=[0.4,0.3,0.18,0.17,0.1,0.05], hint="Energi Data Service") | from_json -}}
+<br/>
+<br/>
+
+## Frequently asked questions
+1. **_Can I use the macro in a Template Helper?_**<br/>
+   Yes. A good choice is the Template Senor and then use one of the code examples above as a guideline. Remember to add a mode (e.g. _mode="cheapStart"_) to the call of PeriodPrice macro. Currently states are limited to 256 characters so forgetting this part will result in an error. Further remember to omit filtering (_| from_json_) from the returned result. While Home Assistant may ignore such a filter, the data returned is <ins>not</ins> json formatted and thus an error may arise at a later stage should the Home Assistant developers decide to enforce a stricter syntax.
+ 
